@@ -138,7 +138,6 @@ export default function AIResumeBuilder() {
         return;
       }
 
-      console.log('AI resume save payload:', payload);
 
       const created = await createResumeApi(payload);
       setStatus(created.message || 'AI resume saved to dashboard successfully.');

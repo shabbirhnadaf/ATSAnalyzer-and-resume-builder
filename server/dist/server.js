@@ -10,7 +10,6 @@ dotenv_1.default.config();
 const PORT = process.env.PORT || 5000;
 const start = async () => {
     await (0, db_1.default)();
-    console.log("API KEY:", process.env.GEMINI_API_KEY);
     app_1.default.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 };
 start();
