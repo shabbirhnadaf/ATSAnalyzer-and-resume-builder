@@ -3,6 +3,7 @@ import ATSAnalysisCard from '../components/ai/ATSAnalysisCard';
 import KeywordGapList from '../components/ai/KeywordGapList';
 import { atsAnalysisApi, skillGapApi } from '../api/ai';
 import { createScanApi } from '../api/scans';
+import { toErrorText } from '../lib/errorText';
 import * as mammoth from 'mammoth';
 import {
   GlobalWorkerOptions,
@@ -168,8 +169,9 @@ export default function AIATSAnalysis() {
       }
     } catch (err: any) {
       setError(
-        err?.response?.data?.details ||
-          err?.response?.data?.message ||
+        toErrorText(err?.response?.data?.details) ||
+          toErrorText(err?.response?.data?.message) ||
+          toErrorText(err?.message) ||
           'Failed to analyze resume.'
       );
     } finally {

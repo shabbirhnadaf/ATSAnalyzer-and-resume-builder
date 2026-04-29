@@ -6,6 +6,7 @@ import { getResumeByIdApi, type ResumeRecord } from '../api/resumes';
 import ResumeDocument from '../components/templates/ResumeDocument';
 import { defaultTemplateId, type ResumeTemplateId } from '../constants/templates';
 import type { ResumeFormValues } from '../types/resume';
+import { toErrorText } from '../lib/errorText';
 
 const clean = (value?: string) => (value || '').trim();
 
@@ -76,7 +77,11 @@ export default function ResumePreviewPage() {
         const response = await getResumeByIdApi(id);
         setResume(response.data || null);
       } catch (err: any) {
-        setError(err?.response?.data?.message || 'Failed to load resume preview.');
+        setError(
+          toErrorText(err?.response?.data?.message) ||
+            toErrorText(err?.message) ||
+            'Failed to load resume preview.'
+        );
       } finally {
         setLoading(false);
       }
@@ -152,7 +157,7 @@ export default function ResumePreviewPage() {
       pdf.save(`${safeName}-resume.pdf`);
     } catch (err: any) {
       console.error('PDF export error:', err);
-      setError(err?.message || 'Failed to export PDF.');
+      setError(toErrorText(err?.message) || 'Failed to export PDF.');
     } finally {
       setExporting(false);
     }

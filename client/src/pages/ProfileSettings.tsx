@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { changePasswordApi, getProfileApi, updateProfileApi } from '../api/profile';
 import { resumeTemplates } from '../constants/templates';
+import { toErrorText } from '../lib/errorText';
 
 type ProfileForm = {
   name: string;
@@ -52,7 +53,11 @@ export default function ProfileSettings() {
           portfolio: res.data.portfolio || '',
         });
       } catch (err: any) {
-        setError(err?.response?.data?.message || 'Failed to load profile');
+        setError(
+          toErrorText(err?.response?.data?.message) ||
+            toErrorText(err?.message) ||
+            'Failed to load profile'
+        );
       } finally {
         setLoading(false);
       }
@@ -76,7 +81,11 @@ export default function ProfileSettings() {
       const res = await updateProfileApi(form);
       setMessage(res.message || 'Profile updated successfully');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to update profile');
+      setError(
+        toErrorText(err?.response?.data?.message) ||
+          toErrorText(err?.message) ||
+          'Failed to update profile'
+      );
     } finally {
       setSavingProfile(false);
       window.scrollTo({
@@ -96,7 +105,11 @@ export default function ProfileSettings() {
       setMessage(res.message || 'Password changed successfully');
       setPasswordForm({ currentPassword: '', newPassword: '' });
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to change password');
+      setError(
+        toErrorText(err?.response?.data?.message) ||
+          toErrorText(err?.message) ||
+          'Failed to change password'
+      );
     } finally {
       setSavingPassword(false);
     }

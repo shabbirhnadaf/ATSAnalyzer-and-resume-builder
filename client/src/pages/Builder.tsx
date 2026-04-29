@@ -9,6 +9,7 @@ import {
 } from '../api/resumes';
 import type { ResumeFormValues, ResumeTemplateId } from '../types/resume';
 import { defaultTemplateId, resumeTemplates } from '../constants/templates';
+import { toErrorText } from '../lib/errorText';
 
 const emptyEducation = {
   institution: '',
@@ -156,7 +157,11 @@ export default function Builder() {
             : ''
         );
       } catch (error: any) {
-        setStatus(error?.response?.data?.message || 'Failed to load resume.');
+        setStatus(
+          toErrorText(error?.response?.data?.message) ||
+            toErrorText(error?.message) ||
+            'Failed to load resume.'
+        );
       } finally {
         setLoading(false);
       }
@@ -230,9 +235,17 @@ export default function Builder() {
     } catch (error: any) {
       const issues = error?.response?.data?.details;
       if (Array.isArray(issues)) {
-        setErrors(issues.map((item: { path?: string; message?: string }) => `${item.path}: ${item.message}`));
+        setErrors(
+          issues
+            .map((item: unknown) => toErrorText(item))
+            .filter(Boolean)
+        );
       }
-      setStatus(error?.response?.data?.message || 'Unable to save resume.');
+      setStatus(
+        toErrorText(error?.response?.data?.message) ||
+          toErrorText(error?.message) ||
+          'Unable to save resume.'
+      );
     } finally {
       setSaving(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });

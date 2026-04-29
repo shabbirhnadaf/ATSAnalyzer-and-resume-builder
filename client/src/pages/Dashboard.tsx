@@ -6,6 +6,7 @@ import {
   getResumesApi,
   type ResumeRecord,
 } from '../api/resumes';
+import { toErrorText } from '../lib/errorText';
 
 export default function Dashboard() {
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
@@ -30,7 +31,11 @@ export default function Dashboard() {
       const response = await getResumesApi();
       setResumes(response.data || []);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to load resumes.');
+      setError(
+        toErrorText(err?.response?.data?.message) ||
+          toErrorText(err?.message) ||
+          'Failed to load resumes.'
+      );
     } finally {
       setLoading(false);
     }
@@ -52,7 +57,11 @@ export default function Dashboard() {
       setResumes((prev) => prev.filter((item) => item._id !== id));
       setStatus('Resume deleted successfully.');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to delete resume.');
+      setError(
+        toErrorText(err?.response?.data?.message) ||
+          toErrorText(err?.message) ||
+          'Failed to delete resume.'
+      );
     } finally {
       setActionLoadingId(null);
     }
@@ -68,7 +77,11 @@ export default function Dashboard() {
       setResumes((prev) => [duplicated, ...prev]);
       setStatus('Resume duplicated successfully.');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to duplicate resume.');
+      setError(
+        toErrorText(err?.response?.data?.message) ||
+          toErrorText(err?.message) ||
+          'Failed to duplicate resume.'
+      );
     } finally {
       setActionLoadingId(null);
     }

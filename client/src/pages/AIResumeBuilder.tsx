@@ -8,37 +8,9 @@ import type { ResumePayload } from '../api/resumes';
 import { defaultTemplateId } from '../constants/templates';
 import { getAccessToken } from '../lib/token';
 import { useAuth } from '../hooks/useAuth';
+import { toErrorText } from '../lib/errorText';
 
 const clean = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
-
-function toErrorText(value: unknown): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-
-  if (Array.isArray(value)) {
-    const items = value
-      .map((item) => toErrorText(item))
-      .map((item) => item.trim())
-      .filter(Boolean);
-    return items.join(', ');
-  }
-
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    if (typeof obj.message === 'string') return obj.message;
-    if (typeof obj.path === 'string' && typeof obj.message === 'string') {
-      return `${obj.path}: ${obj.message}`;
-    }
-
-    const nested = Object.values(obj)
-      .map((item) => toErrorText(item))
-      .map((item) => item.trim())
-      .filter(Boolean);
-    return nested.join(', ');
-  }
-
-  return String(value);
-}
 
 function normalizeBullets(items: string[] = []) {
   return items.map((item) => clean(item)).filter(Boolean);
