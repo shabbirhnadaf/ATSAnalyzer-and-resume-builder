@@ -74,7 +74,7 @@ export default function Resumes() {
                     Template: {resume.template} · Updated: {new Date(resume.updatedAt).toLocaleDateString()}
                   </p>
                   <p className="mt-3 text-sm text-slate-300">
-                    {resume.personalInfo.fullName} · {resume.personalInfo.email}
+                    {resume.personalInfo.fullname} · {resume.personalInfo.email}
                   </p>
                 </div>
 

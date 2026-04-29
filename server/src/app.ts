@@ -13,11 +13,13 @@ import aiRoutes from './routes/ai.routes'
 
 const app = express();
 
-// accessible frontends
-const allowedOrigins = [
-    process.env.CLIENT_URL || 'http://localhost:5173',
-    // 'https://resume-builder-frontend.vercel.app'
-]
+const allowedOrigins = (
+    process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173'
+)
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 app.use(cors({origin: function(origin, callback) {
     if(!origin || allowedOrigins.includes(origin)) {
         callback(null, true);

@@ -74,7 +74,11 @@ export default function ATSScannerPage() {
         const response = await getResumeScansApi(selectedResumeId);
         const items: ScanHistoryRecord[] = (response.data || []).map((scan: ScanHistoryRecord) => ({
           ...scan,
-          mathKeywords: Array.isArray(scan.mathKeywords) ? scan.mathKeywords : [],
+          matchedKeywords: Array.isArray(scan.matchedKeywords)
+            ? scan.matchedKeywords
+            : Array.isArray(scan.mathKeywords)
+              ? scan.mathKeywords
+              : [],
           missingKeywords: Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [],
           warnings: Array.isArray(scan.warnings) ? scan.warnings : [],
           suggestions: Array.isArray(scan.suggestions) ? scan.suggestions : [],
@@ -192,10 +196,11 @@ export default function ATSScannerPage() {
         resume: selectedResumeId,
         jobTitle,
         companyName,
+        jobDescription,
         score: response.data.score,
-        mathKeywords: Array.isArray(response.data.mathKeywords) ? response.data.mathKeywords : [],
+        matchedKeywords: Array.isArray(response.data.matchedKeywords) ? response.data.matchedKeywords : [],
         missingKeywords: Array.isArray(response.data.missingKeywords) ? response.data.missingKeywords : [],
-        warnings: Array.isArray(response.data.warnings) ? response.data.warnings : [],
+        warnings: [],
         suggestions: Array.isArray(response.data.suggestions) ? response.data.suggestions : [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -354,7 +359,11 @@ export default function ATSScannerPage() {
                     key={scan._id}
                     onClick={() => setCurrentScan({
                       ...scan,
-                      mathKeywords: Array.isArray(scan.mathKeywords) ? scan.mathKeywords : [],
+                      matchedKeywords: Array.isArray(scan.matchedKeywords)
+                        ? scan.matchedKeywords
+                        : Array.isArray(scan.mathKeywords)
+                          ? scan.mathKeywords
+                          : [],
                       missingKeywords: Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [],
                       warnings: Array.isArray(scan.warnings) ? scan.warnings : [],
                       suggestions: Array.isArray(scan.suggestions) ? scan.suggestions : [],
@@ -398,7 +407,11 @@ function ScanResultPanel({ scan }: { scan: ScanHistoryRecord | null }) {
     );
   }
 
-  const mathKeywords: string[] = Array.isArray(scan.mathKeywords) ? scan.mathKeywords : [];
+  const matchedKeywords: string[] = Array.isArray(scan.matchedKeywords)
+    ? scan.matchedKeywords
+    : Array.isArray(scan.mathKeywords)
+      ? scan.mathKeywords
+      : [];
   const missingKeywords: string[] = Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [];
   const warnings: string[] = Array.isArray(scan.warnings) ? scan.warnings : [];
   const suggestions: string[] = Array.isArray(scan.suggestions) ? scan.suggestions : [];
@@ -423,7 +436,7 @@ function ScanResultPanel({ scan }: { scan: ScanHistoryRecord | null }) {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <KeywordBox title="Matched Keywords" items={mathKeywords} tone="green" />
+        <KeywordBox title="Matched Keywords" items={matchedKeywords} tone="green" />
         <KeywordBox title="Missing Keywords" items={missingKeywords} tone="amber" />
       </div>
 

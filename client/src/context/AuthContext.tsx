@@ -4,6 +4,8 @@ import { loginApi, logoutApi, meApi, registerApi } from "../api/auth";
 import { clearAccessToken, setAccessToken } from "../lib/token";
 import type { User } from "../types/auth";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
 interface AuthContextType {
     user: User | null;
     loading: boolean;
@@ -22,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const bootstrapAuth = async() => {
         try {
-            const refreshRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/refresh`, {
+            const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
                 method: 'POST',
                 credentials: 'include',
             });
