@@ -11,6 +11,35 @@ import { useAuth } from '../hooks/useAuth';
 
 const clean = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
+function toErrorText(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => toErrorText(item))
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return items.join(', ');
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.message === 'string') return obj.message;
+    if (typeof obj.path === 'string' && typeof obj.message === 'string') {
+      return `${obj.path}: ${obj.message}`;
+    }
+
+    const nested = Object.values(obj)
+      .map((item) => toErrorText(item))
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return nested.join(', ');
+  }
+
+  return String(value);
+}
+
 function normalizeBullets(items: string[] = []) {
   return items.map((item) => clean(item)).filter(Boolean);
 }
@@ -37,10 +66,11 @@ export default function AIResumeBuilder() {
       setResult(res.data);
       setStatus('Complete AI resume generated successfully.');
     } catch (err: any) {
+      const details = toErrorText(err?.response?.data?.details);
+      const message = toErrorText(err?.response?.data?.message);
+      const fallback = toErrorText(err?.message);
       setError(
-        err?.response?.data?.message ||
-          err?.response?.data?.details ||
-          'Failed to generate full AI resume.'
+        details || message || fallback || 'Failed to generate full AI resume.'
       );
     } finally {
       setLoading(false);
@@ -151,11 +181,10 @@ export default function AIResumeBuilder() {
 
       navigate('/resumes');
     } catch (err: any) {
-      const backendMessage =
-        err?.response?.data?.details ||
-        err?.response?.data?.message ||
-        err?.message ||
-        'Failed to save AI resume.';
+      const backendMessage = toErrorText(err?.response?.data?.details)
+        || toErrorText(err?.response?.data?.message)
+        || toErrorText(err?.message)
+        || 'Failed to save AI resume.';
       setError(backendMessage);
       console.error('AI RESUME SAVE ERROR:', err?.response?.data || err);
     } finally {
