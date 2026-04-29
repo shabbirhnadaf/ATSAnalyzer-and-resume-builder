@@ -51,6 +51,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/ai', aiRoutes);
 
 // health check
+app.get('/', (req, res) => res.json({ status: 'OK', message: 'SkillSync API is running' }));
 app.get('/api/health', (req, res) => res.json({ status: 'OK'}));
 
 // Error handler
