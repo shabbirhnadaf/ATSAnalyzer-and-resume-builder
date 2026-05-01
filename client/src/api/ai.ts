@@ -10,8 +10,6 @@ import type {
   ImproveExperienceResponse,
   ImproveSummaryPayload,
   ImproveSummaryResponse,
-  SkillGapPayload,
-  SkillGapResponse,
   TailorResumePayload,
   TailorResumeResponse,
 } from '../types/ai';
@@ -59,14 +57,6 @@ export async function buildResumeApi(payload: BuildResumePayload) {
 export async function atsAnalysisApi(payload: AtsAnalysisPayload) {
   const res = await api.post<{ success: boolean; message: string; data: AtsAnalysisResponse }>(
     '/ai/ats-analysis',
-    payload
-  );
-  return res.data;
-}
-
-export async function skillGapApi(payload: SkillGapPayload) {
-  const res = await api.post<{ success: boolean; message: string; data: SkillGapResponse }>(
-    '/ai/skill-gap',
     payload
   );
   return res.data;

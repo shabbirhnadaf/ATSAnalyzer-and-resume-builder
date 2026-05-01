@@ -6,7 +6,7 @@ import {
   getResumesApi,
   type ResumeRecord,
 } from '../api/resumes';
-import { toErrorText } from '../lib/errorText';
+import { getApiErrorMessage } from '../lib/apiError';
 
 export default function Dashboard() {
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
@@ -14,7 +14,6 @@ export default function Dashboard() {
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-
   const navigate = useNavigate();
 
   const stats = useMemo(() => {
@@ -24,30 +23,25 @@ export default function Dashboard() {
     return { total, withProjects, withExperience };
   }, [resumes]);
 
-  const loadResumes = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const response = await getResumesApi();
-      setResumes(response.data || []);
-    } catch (err: any) {
-      setError(
-        toErrorText(err?.response?.data?.message) ||
-          toErrorText(err?.message) ||
-          'Failed to load resumes.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadResumes();
+    const loadResumes = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await getResumesApi();
+        setResumes(response.data || []);
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, 'Failed to load resumes.'));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadResumes();
   }, []);
 
   const handleDelete = async (id: string) => {
-    const confirmed = window.confirm('Are you sure you want to delete this resume?');
-    if (!confirmed) return;
+    if (!window.confirm('Are you sure you want to delete this resume?')) return;
 
     try {
       setActionLoadingId(id);
@@ -56,12 +50,8 @@ export default function Dashboard() {
       await deleteResumeApi(id);
       setResumes((prev) => prev.filter((item) => item._id !== id));
       setStatus('Resume deleted successfully.');
-    } catch (err: any) {
-      setError(
-        toErrorText(err?.response?.data?.message) ||
-          toErrorText(err?.message) ||
-          'Failed to delete resume.'
-      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to delete resume.'));
     } finally {
       setActionLoadingId(null);
     }
@@ -73,15 +63,10 @@ export default function Dashboard() {
       setStatus('');
       setError('');
       const response = await duplicateResumeApi(id);
-      const duplicated = response.data;
-      setResumes((prev) => [duplicated, ...prev]);
+      setResumes((prev) => [response.data, ...prev]);
       setStatus('Resume duplicated successfully.');
-    } catch (err: any) {
-      setError(
-        toErrorText(err?.response?.data?.message) ||
-          toErrorText(err?.message) ||
-          'Failed to duplicate resume.'
-      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to duplicate resume.'));
     } finally {
       setActionLoadingId(null);
     }
@@ -95,45 +80,29 @@ export default function Dashboard() {
             <p className="text-sm uppercase tracking-[0.25em] text-cyan-300">Resume Workspace</p>
             <h1 className="mt-3 text-4xl font-semibold text-white md:text-5xl">Manage your resume library</h1>
             <p className="mt-4 max-w-2xl text-slate-300">
-              Create role-specific resumes, polish them for ATS readability, preview before export, and keep multiple versions ready for different applications.
+              Create role-specific resumes, polish them for ATS readability, preview before export,
+              and keep multiple versions ready for different applications.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => navigate('/ai-resume-builder')}
-                className="rounded-2xl bg-cyan-400 px-6 py-3 font-medium text-slate-950"
-              >
-                Create Resume
-              </button>
-
-              <Link
-                to="/scan-history"
-                className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white"
-              >
-                Scan History
-              </Link>
-
-              <Link
-                to="/ai-resume-builder"
-                className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white"
-              >
-                AI Resume Builder
-              </Link>
-
-              <Link
-                to="/ai-ats-analysis"
-                className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white"
-              >
-                AI ATS Analysis
-              </Link>
-            </div>
-
-            <Link
-              to="/settings"
-              className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white"
+            <button
+              type="button"
+              onClick={() => navigate('/ai-resume-builder')}
+              className="rounded-2xl bg-cyan-400 px-6 py-3 font-medium text-slate-950"
             >
+              Create Resume
+            </button>
+            <Link to="/scan-history" className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white">
+              Scan History
+            </Link>
+            <Link to="/ai-resume-builder" className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white">
+              AI Resume Builder
+            </Link>
+            <Link to="/ai-ats-analysis" className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white">
+              AI ATS Analysis
+            </Link>
+            <Link to="/settings" className="rounded-2xl border border-white/10 px-6 py-3 font-medium text-white">
               Profile / Settings
             </Link>
           </div>
@@ -207,10 +176,6 @@ function ResumeCard({
   onDuplicate: () => void;
 }) {
   const updatedAt = new Date(resume.updatedAt).toLocaleDateString();
-  const educationCount = resume.education?.length || 0;
-  const experienceCount = resume.experience?.length || 0;
-  const projectCount = resume.projects?.length || 0;
-  const skillsCount = resume.skills?.length || 0;
 
   return (
     <article className="group rounded-[1.75rem] border border-white/10 bg-white/5 p-5 text-white transition duration-300 hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.07]">
@@ -239,34 +204,22 @@ function ResumeCard({
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3">
-        <MiniMetric label="Education" value={educationCount} />
-        <MiniMetric label="Experience" value={experienceCount} />
-        <MiniMetric label="Projects" value={projectCount} />
-        <MiniMetric label="Skills" value={skillsCount} />
+        <MiniMetric label="Education" value={resume.education?.length || 0} />
+        <MiniMetric label="Experience" value={resume.experience?.length || 0} />
+        <MiniMetric label="Projects" value={resume.projects?.length || 0} />
+        <MiniMetric label="Skills" value={resume.skills?.length || 0} />
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
-        <Link
-          to={`/builder?id=${resume._id}`}
-          className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-medium text-slate-950"
-        >
+        <Link to={`/builder?id=${resume._id}`} className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-medium text-slate-950">
           Edit
         </Link>
-
-        <Link
-          to={`/resume-preview/${resume._id}`}
-          className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100"
-        >
+        <Link to={`/resume-preview/${resume._id}`} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100">
           Preview
         </Link>
-
-        <Link
-          to={`/ats-scanner?resumeId=${resume._id}`}
-          className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100"
-        >
+        <Link to={`/ats-scanner?resumeId=${resume._id}`} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100">
           ATS Scan
         </Link>
-
         <button
           type="button"
           onClick={onDuplicate}
@@ -275,7 +228,6 @@ function ResumeCard({
         >
           {loading ? 'Working...' : 'Duplicate'}
         </button>
-
         <button
           type="button"
           onClick={onDelete}
@@ -302,7 +254,7 @@ function EmptyState() {
   return (
     <div className="rounded-4xl border border-dashed border-white/15 bg-white/5 px-6 py-16 text-center text-white">
       <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-cyan-400/10 text-4xl">
-        📄
+        CV
       </div>
       <h2 className="mt-6 text-3xl font-semibold">No resumes yet</h2>
       <p className="mx-auto mt-3 max-w-xl text-slate-400">

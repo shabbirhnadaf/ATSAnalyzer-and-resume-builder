@@ -4,59 +4,14 @@ import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import { getResumeByIdApi, type ResumeRecord } from '../api/resumes';
 import ResumeDocument from '../components/templates/ResumeDocument';
-import { defaultTemplateId, type ResumeTemplateId } from '../constants/templates';
+import type { ResumeTemplateId } from '../constants/templates';
 import type { ResumeFormValues } from '../types/resume';
-import { toErrorText } from '../lib/errorText';
-
-const clean = (value?: string) => (value || '').trim();
-
-function normalizeResumeToFormValues(resume: ResumeRecord): ResumeFormValues {
-  return {
-    title: clean(resume.title),
-    template: (clean((resume as any).template) || defaultTemplateId) as any,
-    mode: 'student' as any,
-    personalInfo: {
-      fullname: clean(resume.personalInfo?.fullname),
-      email: clean(resume.personalInfo?.email),
-      phone: clean(resume.personalInfo?.phone),
-      location: clean(resume.personalInfo?.location),
-      linkedin: clean(resume.personalInfo?.linkedin),
-      github: clean(resume.personalInfo?.github),
-      portfolio: clean(resume.personalInfo?.portfolio),
-    } as any,
-    summary: clean(resume.summary),
-    skills: Array.isArray(resume.skills) ? resume.skills.filter(Boolean) : [],
-    experience: Array.isArray(resume.experience)
-      ? resume.experience.map((item: any) => ({
-          company: clean(item?.company),
-          role: clean(item?.role),
-          startDate: clean(item?.startDate),
-          endDate: clean(item?.endDate),
-          description: Array.isArray(item?.description) ? item.description.filter(Boolean) : [],
-        }))
-      : [],
-    education: Array.isArray(resume.education)
-      ? resume.education.map((item: any) => ({
-          institution: clean(item?.institution),
-          degree: clean(item?.degree),
-          startDate: clean(item?.startDate),
-          endDate: clean(item?.endDate),
-          score: clean(item?.score),
-        }))
-      : [],
-    projects: Array.isArray(resume.projects)
-      ? resume.projects.map((item: any) => ({
-          title: clean(item?.title),
-          description: Array.isArray(item?.description) ? item.description.filter(Boolean) : [],
-          link: clean(item?.link),
-        }))
-      : [],
-    certifications: Array.isArray(resume.certifications) ? resume.certifications.filter(Boolean) : [],
-    achievements: [],
-    extracurriculars: [],
-    coursework: [],
-  } as ResumeFormValues;
-}
+import { getApiErrorMessage } from '../lib/apiError';
+import {
+  cleanText,
+  normalizeResumeRecordToFormValues,
+  normalizeTemplateId,
+} from '../lib/resume';
 
 export default function ResumePreviewPage() {
   const { id } = useParams();
@@ -76,12 +31,8 @@ export default function ResumePreviewPage() {
         setError('');
         const response = await getResumeByIdApi(id);
         setResume(response.data || null);
-      } catch (err: any) {
-        setError(
-          toErrorText(err?.response?.data?.message) ||
-            toErrorText(err?.message) ||
-            'Failed to load resume preview.'
-        );
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, 'Failed to load resume preview.'));
       } finally {
         setLoading(false);
       }
@@ -94,12 +45,14 @@ export default function ResumePreviewPage() {
     if (!resume) return 0;
 
     let score = 0;
-    if (clean(resume.personalInfo?.fullname)) score += 20;
-    if (clean(resume.summary)) score += 15;
-    if ((resume.skills?.length || 0) > 0) score += 15;
-    if ((resume.education?.length || 0) > 0) score += 20;
-    if ((resume.experience?.length || 0) > 0 || (resume.projects?.length || 0) > 0) score += 20;
-    if ((resume.certifications?.length || 0) > 0) score += 10;
+    if (cleanText(resume.personalInfo?.fullname)) score += 18;
+    if (cleanText(resume.summary)) score += 14;
+    if ((resume.skills?.length || 0) > 0) score += 14;
+    if ((resume.education?.length || 0) > 0) score += 16;
+    if ((resume.experience?.length || 0) > 0) score += 16;
+    if ((resume.projects?.length || 0) > 0) score += 12;
+    if ((resume.certifications?.length || 0) > 0) score += 5;
+    if ((resume.achievements?.length || 0) > 0) score += 5;
 
     return score;
   }, [resume]);
@@ -112,7 +65,6 @@ export default function ResumePreviewPage() {
       setError('');
 
       const element = resumeRef.current;
-
       const canvas = await html2canvas(element, {
         scale: 2,
         backgroundColor: '#ffffff',
@@ -124,7 +76,6 @@ export default function ResumePreviewPage() {
       });
 
       const imgData = canvas.toDataURL('image/png', 1.0);
-
       const pdf = new jsPDF({
         orientation: 'p',
         unit: 'mm',
@@ -150,21 +101,17 @@ export default function ResumePreviewPage() {
         heightLeft -= pageHeight;
       }
 
-      const safeName = clean(resume.personalInfo?.fullname || resume.title || 'resume')
+      const safeName = cleanText(resume.personalInfo?.fullname || resume.title || 'resume')
         .replace(/\s+/g, '-')
         .toLowerCase();
 
       pdf.save(`${safeName}-resume.pdf`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('PDF export error:', err);
-      setError(toErrorText(err?.message) || 'Failed to export PDF.');
+      setError(getApiErrorMessage(err, 'Failed to export PDF.'));
     } finally {
       setExporting(false);
     }
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   if (loading) {
@@ -183,8 +130,8 @@ export default function ResumePreviewPage() {
     );
   }
 
-  const templateId = (clean((resume as any).template) || defaultTemplateId) as ResumeTemplateId;
-  const formValues = normalizeResumeToFormValues(resume);
+  const templateId: ResumeTemplateId = normalizeTemplateId(resume.template);
+  const formValues: ResumeFormValues = normalizeResumeRecordToFormValues(resume);
 
   return (
     <section className="space-y-8 print:bg-white">
@@ -243,7 +190,7 @@ export default function ResumePreviewPage() {
             {resume.title || 'Resume Preview'}
           </h1>
           <p className="mt-3 max-w-2xl text-slate-400">
-            This page uses the saved template, so preview, print, and export now stay consistent.
+            This page uses the saved template, so preview, print, and export stay consistent.
           </p>
         </div>
 
@@ -256,13 +203,15 @@ export default function ResumePreviewPage() {
           </Link>
 
           <button
-            onClick={handlePrint}
+            type="button"
+            onClick={() => window.print()}
             className="rounded-xl border border-white/10 px-5 py-3 text-sm text-slate-100"
           >
             Print / Save PDF
           </button>
 
           <button
+            type="button"
             onClick={exportPDF}
             disabled={exporting}
             className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-medium text-slate-950 disabled:opacity-60"
@@ -297,22 +246,17 @@ export default function ResumePreviewPage() {
           </div>
 
           <div className="mt-5 space-y-3">
-            <HealthItem
-              label="Template selected"
-              ok={!!templateId}
-            />
+            <HealthItem label="Template selected" ok={!!templateId} />
             <HealthItem
               label="Personal info"
-              ok={!!clean(resume.personalInfo?.fullname) && !!clean(resume.personalInfo?.email)}
+              ok={!!cleanText(resume.personalInfo?.fullname) && !!cleanText(resume.personalInfo?.email)}
             />
-            <HealthItem label="Summary" ok={!!clean(resume.summary)} />
+            <HealthItem label="Summary" ok={!!cleanText(resume.summary)} />
             <HealthItem label="Skills" ok={(resume.skills?.length || 0) > 0} />
             <HealthItem label="Education" ok={(resume.education?.length || 0) > 0} />
-            <HealthItem
-              label="Experience or Projects"
-              ok={(resume.experience?.length || 0) > 0 || (resume.projects?.length || 0) > 0}
-            />
-            <HealthItem label="Certifications" ok={(resume.certifications?.length || 0) > 0} />
+            <HealthItem label="Experience" ok={(resume.experience?.length || 0) > 0} />
+            <HealthItem label="Projects" ok={(resume.projects?.length || 0) > 0} />
+            <HealthItem label="Standout details" ok={(resume.achievements?.length || 0) + (resume.coursework?.length || 0) + (resume.extracurriculars?.length || 0) > 0} />
           </div>
         </aside>
 

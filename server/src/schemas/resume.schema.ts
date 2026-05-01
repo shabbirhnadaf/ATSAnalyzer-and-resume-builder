@@ -25,6 +25,7 @@ const projectSchema = z.object({
 export const resumeSchema = z.object({
   title: z.string().trim().min(2).max(120),
   template: z.string().trim().min(1),
+  mode: z.enum(['student', 'professional', 'fresher', 'experienced', 'career-switch']).default('student'),
   personalInfo: z.object({
     fullname: z.string().trim().min(2),
     email: z.string().trim().email({ message: 'Invalid email' }),
@@ -40,4 +41,7 @@ export const resumeSchema = z.object({
   education: z.array(educationSchema).default([]),
   projects: z.array(projectSchema).default([]),
   certifications: z.array(z.string().trim()).default([]),
+  achievements: z.array(z.string().trim()).default([]),
+  extracurriculars: z.array(z.string().trim()).default([]),
+  coursework: z.array(z.string().trim()).default([]),
 });

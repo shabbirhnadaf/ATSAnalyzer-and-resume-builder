@@ -16,12 +16,12 @@ export default function AppShell() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="grid min-h-screen lg:grid-cols-[260px_1fr]">
-        <aside className="border-r border-white/10 bg-slate-900/70 p-6">
+        <aside className="border-r border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.14),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.95),rgba(2,6,23,0.96))] p-6">
           <div className="mb-8">
 
             <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">ResumeIQ</p>
             <h1 className="mt-2 text-2xl font-semibold">Workspace</h1>
-            <p className="mt-2 test-sm text-slate-400">{user?.name}</p>
+            <p className="mt-2 text-sm text-slate-400">{user?.name}</p>
 
           </div>
           <nav className="space-y-2">
@@ -51,7 +51,7 @@ export default function AppShell() {
           </button>
         </aside>
 
-        <main className="p-6 lg:p-10">
+        <main className="bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.08),_transparent_22%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.08),_transparent_26%)] p-6 lg:p-10">
           <Outlet />
         </main>
       </div>

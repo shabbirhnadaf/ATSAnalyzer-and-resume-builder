@@ -4,6 +4,7 @@ export interface IResume extends Document {
   user: Types.ObjectId;
   title: string;
   template: string;
+  mode: 'student' | 'professional' | 'fresher' | 'experienced' | 'career-switch';
   personalInfo: {
     fullname: string;
     email: string;
@@ -35,6 +36,9 @@ export interface IResume extends Document {
     link?: string;
   }[];
   certifications: string[];
+  achievements: string[];
+  extracurriculars: string[];
+  coursework: string[];
 }
 
 const resumeSchema = new Schema<IResume>(
@@ -42,6 +46,7 @@ const resumeSchema = new Schema<IResume>(
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     title: { type: String, required: true, trim: true },
     template: { type: String, required: true, default: 'modern', trim: true },
+    mode: { type: String, required: true, default: 'student', trim: true },
     personalInfo: {
       fullname: { type: String, required: true, trim: true },
       email: { type: String, required: true, trim: true },
@@ -79,6 +84,9 @@ const resumeSchema = new Schema<IResume>(
       },
     ],
     certifications: { type: [String], default: [] },
+    achievements: { type: [String], default: [] },
+    extracurriculars: { type: [String], default: [] },
+    coursework: { type: [String], default: [] },
   },
   { timestamps: true }
 );

@@ -2,23 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getResumesApi, type ResumeRecord } from '../api/resumes';
 import { createScanApi, getResumeScansApi, type ScanHistoryRecord } from '../api/scans';
-
-type ResumeSectionItem = {
-  institution?: string;
-  degree?: string;
-  score?: string;
-  startDate?: string;
-  endDate?: string;
-  company?: string;
-  role?: string;
-  title?: string;
-  link?: string;
-  description?: string[];
-};
+import { getApiErrorMessage } from '../lib/apiError';
+import { buildResumePlainText } from '../lib/resume';
 
 export default function ATSScannerPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState(searchParams.get('resumeId') || '');
   const [jobTitle, setJobTitle] = useState('');
@@ -38,7 +26,7 @@ export default function ATSScannerPage() {
         setLoadingResumes(true);
         setError('');
         const response = await getResumesApi();
-        const items: ResumeRecord[] = response.data || [];
+        const items = response.data || [];
         setResumes(items);
 
         if (!selectedResumeId && items.length > 0) {
@@ -47,12 +35,7 @@ export default function ATSScannerPage() {
           setSearchParams({ resumeId: firstId });
         }
       } catch (err: unknown) {
-        const message =
-          err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-            : undefined;
-
-        setError(message || 'Failed to load resumes.');
+        setError(getApiErrorMessage(err, 'Failed to load resumes.'));
       } finally {
         setLoadingResumes(false);
       }
@@ -72,26 +55,9 @@ export default function ATSScannerPage() {
         setLoadingHistory(true);
         setError('');
         const response = await getResumeScansApi(selectedResumeId);
-        const items: ScanHistoryRecord[] = (response.data || []).map((scan: ScanHistoryRecord) => ({
-          ...scan,
-          matchedKeywords: Array.isArray(scan.matchedKeywords)
-            ? scan.matchedKeywords
-            : Array.isArray(scan.mathKeywords)
-              ? scan.mathKeywords
-              : [],
-          missingKeywords: Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [],
-          warnings: Array.isArray(scan.warnings) ? scan.warnings : [],
-          suggestions: Array.isArray(scan.suggestions) ? scan.suggestions : [],
-        }));
-
-        setScanHistory(items);
+        setScanHistory(response.data || []);
       } catch (err: unknown) {
-        const message =
-          err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-            : undefined;
-
-        setError(message || 'Failed to load scan history.');
+        setError(getApiErrorMessage(err, 'Failed to load scan history.'));
       } finally {
         setLoadingHistory(false);
       }
@@ -101,59 +67,12 @@ export default function ATSScannerPage() {
   }, [selectedResumeId]);
 
   const selectedResume = useMemo(
-    () => resumes.find((resume: ResumeRecord) => resume._id === selectedResumeId) || null,
+    () => resumes.find((resume) => resume._id === selectedResumeId) || null,
     [resumes, selectedResumeId]
   );
 
-  const buildResumeText = (resume: ResumeRecord | null): string => {
-    if (!resume) return '';
-
-    const parts: string[] = [];
-
-    parts.push(resume.title || '');
-    parts.push(resume.personalInfo?.fullname || '');
-    parts.push(resume.personalInfo?.email || '');
-    parts.push(resume.personalInfo?.phone || '');
-    parts.push(resume.personalInfo?.location || '');
-    parts.push(resume.summary || '');
-    parts.push(...(Array.isArray(resume.skills) ? resume.skills : []));
-    parts.push(...(Array.isArray(resume.certifications) ? resume.certifications : []));
-
-    (Array.isArray(resume.education) ? resume.education : []).forEach((item: ResumeSectionItem) => {
-      parts.push(item.institution || '');
-      parts.push(item.degree || '');
-      parts.push(item.score || '');
-      parts.push(item.startDate || '');
-      parts.push(item.endDate || '');
-    });
-
-    (Array.isArray(resume.experience) ? resume.experience : []).forEach((item: ResumeSectionItem) => {
-      parts.push(item.company || '');
-      parts.push(item.role || '');
-      parts.push(item.startDate || '');
-      parts.push(item.endDate || '');
-      parts.push(...(Array.isArray(item.description) ? item.description : []));
-    });
-
-    (Array.isArray(resume.projects) ? resume.projects : []).forEach((item: ResumeSectionItem) => {
-      parts.push(item.title || '');
-      parts.push(item.link || '');
-      parts.push(...(Array.isArray(item.description) ? item.description : []));
-    });
-
-    return parts.filter((part: string) => Boolean(part)).join(' ');
-  };
-
-  const handleResumeChange = (value: string) => {
-    setSelectedResumeId(value);
-    setSearchParams({ resumeId: value });
-    setCurrentScan(null);
-    setStatus('');
-    setError('');
-  };
-
-  const handleScan = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleScan = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
     if (!selectedResumeId) {
       setError('Please select a resume.');
@@ -170,8 +89,7 @@ export default function ATSScannerPage() {
       return;
     }
 
-    const resumeText = buildResumeText(selectedResume);
-
+    const resumeText = buildResumePlainText(selectedResume);
     if (!resumeText || resumeText.length < 50) {
       setError('Resume content is too short to scan.');
       return;
@@ -192,30 +110,24 @@ export default function ATSScannerPage() {
 
       const optimisticScan: ScanHistoryRecord = {
         _id: response.data.historyId,
-        user: '',
         resume: selectedResumeId,
-        jobTitle,
-        companyName,
-        jobDescription,
+        jobTitle: response.data.jobTitle || jobTitle,
+        companyName: response.data.companyName || companyName,
         score: response.data.score,
-        matchedKeywords: Array.isArray(response.data.matchedKeywords) ? response.data.matchedKeywords : [],
-        missingKeywords: Array.isArray(response.data.missingKeywords) ? response.data.missingKeywords : [],
-        warnings: [],
-        suggestions: Array.isArray(response.data.suggestions) ? response.data.suggestions : [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        matchedKeywords: response.data.matchedKeywords,
+        missingKeywords: response.data.missingKeywords,
+        strengths: response.data.strengths,
+        priorityFixes: response.data.priorityFixes,
+        roleFitSummary: response.data.roleFitSummary,
+        createdAt: response.data.createdAt || new Date().toISOString(),
+        updatedAt: response.data.updatedAt || new Date().toISOString(),
       };
 
       setCurrentScan(optimisticScan);
-      setScanHistory((prev: ScanHistoryRecord[]) => [optimisticScan, ...prev]);
+      setScanHistory((prev) => [optimisticScan, ...prev]);
       setStatus('ATS scan completed successfully.');
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined;
-
-      setError(message || 'Failed to scan resume.');
+      setError(getApiErrorMessage(err, 'Failed to scan resume.'));
     } finally {
       setSubmitting(false);
     }
@@ -228,11 +140,11 @@ export default function ATSScannerPage() {
           <div>
             <p className="text-sm uppercase tracking-[0.25em] text-cyan-300">ATS Scanner</p>
             <h1 className="mt-3 text-4xl font-semibold text-white md:text-5xl">
-              Match your resume to the role
+              Match your existing resume to the role
             </h1>
             <p className="mt-4 max-w-3xl text-slate-300">
-              Compare a saved resume against a job description, inspect matched keywords, review missing terms,
-              and track scan history for each tailored resume.
+              Select one of your saved resumes, compare it against a job description, and focus on
+              only the signals that matter most: fit summary, strongest matches, gaps, and top fixes.
             </p>
           </div>
 
@@ -278,14 +190,21 @@ export default function ATSScannerPage() {
               <label className="mb-2 block text-sm font-medium text-slate-200">Select Resume</label>
               <select
                 value={selectedResumeId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleResumeChange(e.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedResumeId(value);
+                  setSearchParams({ resumeId: value });
+                  setCurrentScan(null);
+                  setStatus('');
+                  setError('');
+                }}
                 disabled={loadingResumes}
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
               >
                 <option value="">Choose a saved resume</option>
-                {resumes.map((resume: ResumeRecord) => (
+                {resumes.map((resume) => (
                   <option key={resume._id} value={resume._id}>
-                    {resume.title || 'Untitled Resume'} — {resume.personalInfo?.fullname || 'No name'}
+                    {resume.title || 'Untitled Resume'} - {resume.personalInfo?.fullname || 'No name'}
                   </option>
                 ))}
               </select>
@@ -295,7 +214,7 @@ export default function ATSScannerPage() {
               <label className="mb-2 block text-sm font-medium text-slate-200">Job Title</label>
               <input
                 value={jobTitle}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJobTitle(e.target.value)}
+                onChange={(event) => setJobTitle(event.target.value)}
                 placeholder="Frontend Developer"
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white placeholder:text-slate-500 outline-none"
               />
@@ -305,7 +224,7 @@ export default function ATSScannerPage() {
               <label className="mb-2 block text-sm font-medium text-slate-200">Company</label>
               <input
                 value={companyName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCompanyName(e.target.value)}
+                onChange={(event) => setCompanyName(event.target.value)}
                 placeholder="Acme Inc"
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white placeholder:text-slate-500 outline-none"
               />
@@ -316,7 +235,7 @@ export default function ATSScannerPage() {
               <textarea
                 rows={14}
                 value={jobDescription}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setJobDescription(e.target.value)}
+                onChange={(event) => setJobDescription(event.target.value)}
                 placeholder="Paste the full job description here..."
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white placeholder:text-slate-500 outline-none"
               />
@@ -345,7 +264,7 @@ export default function ATSScannerPage() {
 
             {loadingHistory ? (
               <div className="mt-5 space-y-3">
-                {Array.from({ length: 3 }).map((_: unknown, index: number) => (
+                {Array.from({ length: 3 }).map((_, index) => (
                   <div key={index} className="h-24 animate-pulse rounded-2xl bg-white/5" />
                 ))}
               </div>
@@ -353,28 +272,18 @@ export default function ATSScannerPage() {
               <p className="mt-5 text-slate-400">No scans yet for this resume.</p>
             ) : (
               <div className="mt-5 space-y-3">
-                {scanHistory.map((scan: ScanHistoryRecord) => (
+                {scanHistory.map((scan) => (
                   <button
                     type="button"
                     key={scan._id}
-                    onClick={() => setCurrentScan({
-                      ...scan,
-                      matchedKeywords: Array.isArray(scan.matchedKeywords)
-                        ? scan.matchedKeywords
-                        : Array.isArray(scan.mathKeywords)
-                          ? scan.mathKeywords
-                          : [],
-                      missingKeywords: Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [],
-                      warnings: Array.isArray(scan.warnings) ? scan.warnings : [],
-                      suggestions: Array.isArray(scan.suggestions) ? scan.suggestions : [],
-                    })}
+                    onClick={() => setCurrentScan(scan)}
                     className="w-full rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-left"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="font-medium text-white">
                           {scan.jobTitle || 'Untitled role'}
-                          {scan.companyName ? ` • ${scan.companyName}` : ''}
+                          {scan.companyName ? ` · ${scan.companyName}` : ''}
                         </h3>
                         <p className="mt-1 text-sm text-slate-400">
                           {new Date(scan.createdAt).toLocaleString()}
@@ -407,15 +316,6 @@ function ScanResultPanel({ scan }: { scan: ScanHistoryRecord | null }) {
     );
   }
 
-  const matchedKeywords: string[] = Array.isArray(scan.matchedKeywords)
-    ? scan.matchedKeywords
-    : Array.isArray(scan.mathKeywords)
-      ? scan.mathKeywords
-      : [];
-  const missingKeywords: string[] = Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [];
-  const warnings: string[] = Array.isArray(scan.warnings) ? scan.warnings : [];
-  const suggestions: string[] = Array.isArray(scan.suggestions) ? scan.suggestions : [];
-
   return (
     <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 text-white">
       <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -423,8 +323,11 @@ function ScanResultPanel({ scan }: { scan: ScanHistoryRecord | null }) {
           <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Current Result</p>
           <h2 className="mt-2 text-2xl font-semibold">
             {scan.jobTitle || 'Target role'}
-            {scan.companyName ? ` • ${scan.companyName}` : ''}
+            {scan.companyName ? ` · ${scan.companyName}` : ''}
           </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            {scan.roleFitSummary || 'ATS scan complete.'}
+          </p>
         </div>
 
         <div className="text-right">
@@ -436,38 +339,13 @@ function ScanResultPanel({ scan }: { scan: ScanHistoryRecord | null }) {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <KeywordBox title="Matched Keywords" items={matchedKeywords} tone="green" />
-        <KeywordBox title="Missing Keywords" items={missingKeywords} tone="amber" />
+        <KeywordBox title="Matched Keywords" items={scan.matchedKeywords} tone="green" />
+        <KeywordBox title="Missing Keywords" items={scan.missingKeywords} tone="amber" />
       </div>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-5">
-        <h3 className="text-lg font-semibold text-white">Warnings</h3>
-        {warnings.length === 0 ? (
-          <p className="mt-3 text-slate-400">No warnings generated.</p>
-        ) : (
-          <ul className="mt-4 space-y-3 text-sm text-slate-200">
-            {warnings.map((warning: string, index: number) => (
-              <li key={`${warning}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                {warning}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/40 p-5">
-        <h3 className="text-lg font-semibold text-white">Suggestions</h3>
-        {suggestions.length === 0 ? (
-          <p className="mt-3 text-slate-400">No suggestions generated.</p>
-        ) : (
-          <ul className="mt-4 space-y-3 text-sm text-slate-200">
-            {suggestions.map((suggestion: string, index: number) => (
-              <li key={`${suggestion}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                {suggestion}
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <ListBlock title="Strengths" items={scan.strengths} />
+        <ListBlock title="Priority Fixes" items={scan.priorityFixes} />
       </div>
     </div>
   );
@@ -490,17 +368,35 @@ function KeywordBox({
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
       <h3 className="text-lg font-semibold text-white">{title}</h3>
-
       {items.length === 0 ? (
         <p className="mt-3 text-sm text-slate-400">No items available.</p>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
-          {items.map((item: string) => (
+          {items.map((item) => (
             <span key={item} className={`rounded-full px-3 py-1 text-xs font-medium ${toneClass}`}>
               {item}
             </span>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function ListBlock({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      {items.length === 0 ? (
+        <p className="mt-3 text-slate-400">No items generated.</p>
+      ) : (
+        <ul className="mt-4 space-y-3 text-sm text-slate-200">
+          {items.map((item, index) => (
+            <li key={`${item}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+              {item}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

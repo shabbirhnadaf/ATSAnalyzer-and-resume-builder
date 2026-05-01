@@ -3,10 +3,41 @@ import { success } from "../utils/api";
 import ScanHistory from "../models/ScanHistory";
 import { scoreResumeAgainstJD } from "../utils/ats";
 
+function formatScan(scan: {
+    id?: string;
+    _id?: unknown;
+    resume?: unknown;
+    jobTitle?: string;
+    companyName?: string;
+    score: number;
+    matchedKeywords?: string[];
+    missingKeywords?: string[];
+    strengths?: string[];
+    priorityFixes?: string[];
+    roleFitSummary?: string;
+    createdAt?: Date | string;
+    updatedAt?: Date | string;
+}) {
+    return {
+        _id: scan.id || String(scan._id || ''),
+        resume: scan.resume,
+        jobTitle: scan.jobTitle || '',
+        companyName: scan.companyName || '',
+        score: scan.score,
+        matchedKeywords: Array.isArray(scan.matchedKeywords) ? scan.matchedKeywords : [],
+        missingKeywords: Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [],
+        strengths: Array.isArray(scan.strengths) ? scan.strengths : [],
+        priorityFixes: Array.isArray(scan.priorityFixes) ? scan.priorityFixes : [],
+        roleFitSummary: scan.roleFitSummary || '',
+        createdAt: scan.createdAt,
+        updatedAt: scan.updatedAt,
+    };
+}
+
 export const scanResume = async(req: Request, res: Response) => {
     const { resumeId, resumeText, jobDescription, jobTitle, companyName } = req.body;
 
-    const result = scoreResumeAgainstJD(resumeText, jobDescription);
+    const result = scoreResumeAgainstJD(resumeText, jobDescription, jobTitle);
 
     const history = await ScanHistory.create({
         user: req.user?.id,
@@ -16,13 +47,18 @@ export const scanResume = async(req: Request, res: Response) => {
         ...result,
     });
 
-    res.status(201).json(success({ ...result, historyId: history.id }, 'Resume scanned successfully'));
+    res.status(201).json(success({ ...formatScan(history.toObject()), historyId: history.id }, 'Resume scanned successfully'));
 }
 
 export const getScanHistory = async (req: Request, res: Response) => {
-    const { resumeId } = req.query;
+    const resumeId =
+        typeof req.params.resumeId === 'string' && req.params.resumeId
+            ? req.params.resumeId
+            : typeof req.query.resumeId === 'string'
+            ? req.query.resumeId
+            : '';
 
-    const query: Record<string, any> = {
+    const query: Record<string, unknown> = {
         user: req.user?.id,
     };
 
@@ -32,5 +68,5 @@ export const getScanHistory = async (req: Request, res: Response) => {
 
     const scans = await ScanHistory.find(query).sort({ createdAt: -1 });
 
-    res.json(success(scans, 'Scan history fetched successfully'));
+    res.json(success(scans.map((scan) => formatScan(scan.toObject())), 'Scan history fetched successfully'));
 }

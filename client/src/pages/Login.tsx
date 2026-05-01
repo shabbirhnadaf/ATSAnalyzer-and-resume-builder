@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { getApiErrorMessage } from '../lib/apiError';
 
 export default function Login() {
   const { login } = useAuth();
@@ -12,19 +13,20 @@ export default function Login() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     try {
       setSubmitting(true);
       setError('');
       await login(form);
       navigate(from, { replace: true });
-    } catch (error) {
-      setError('Invalid email or password')
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Invalid email or password'));
     } finally {
       setSubmitting(false);
     }
-  }
+  };
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-950 px-6 text-white">
@@ -38,14 +40,14 @@ export default function Login() {
             placeholder="Email"
             type="email"
             value={form.email}
-            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+            onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
           />
           <input
             className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 outline-none"
             placeholder="Password"
             type="password"
             value={form.password}
-            onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+            onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
           />
         </div>
 
@@ -59,9 +61,9 @@ export default function Login() {
         </button>
 
         <p className="mt-4 text-sm text-slate-400">
-          Don’t have an account? <Link to="/register" className="text-cyan-300">Create one</Link>
+          Don&apos;t have an account? <Link to="/register" className="text-cyan-300">Create one</Link>
         </p>
       </form>
     </main>
-  )
+  );
 }

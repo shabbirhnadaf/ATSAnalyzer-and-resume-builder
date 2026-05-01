@@ -4,25 +4,15 @@ import { getResumesApi, type ResumeRecord } from '../api/resumes';
 import { getScanHistoryApi, getResumeScansApi, type ScanHistoryRecord } from '../api/scans';
 import ScanComparisonDrawer from '../components/scans/ScanComparisonDrawer';
 import ScanHistoryCard from '../components/scans/ScanHistoryCard';
-
-type ScanArrayRecord = ScanHistoryRecord & {
-  matchedKeywords?: string[];
-  mathKeywords?: string[];
-  missingKeywords?: string[];
-  warnings?: string[];
-  suggestions?: string[];
-  company?: string;
-  companyName?: string;
-};
+import { getApiErrorMessage } from '../lib/apiError';
 
 export default function ScanHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-
   const [resumes, setResumes] = useState<ResumeRecord[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState(searchParams.get('resumeId') || 'all');
-  const [scans, setScans] = useState<ScanArrayRecord[]>([]);
-  const [selectedScan, setSelectedScan] = useState<ScanArrayRecord | null>(null);
-  const [compareScan, setCompareScan] = useState<ScanArrayRecord | null>(null);
+  const [scans, setScans] = useState<ScanHistoryRecord[]>([]);
+  const [selectedScan, setSelectedScan] = useState<ScanHistoryRecord | null>(null);
+  const [compareScan, setCompareScan] = useState<ScanHistoryRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -50,34 +40,11 @@ export default function ScanHistoryPage() {
             ? await getScanHistoryApi()
             : await getResumeScansApi(selectedResumeId);
 
-        const items: ScanArrayRecord[] = (response.data || []).map((scan: ScanHistoryRecord) => ({
-          ...scan,
-          matchedKeywords: Array.isArray(scan.matchedKeywords)
-            ? scan.matchedKeywords
-            : Array.isArray(scan.mathKeywords)
-              ? scan.mathKeywords
-              : [],
-          mathKeywords: Array.isArray(scan.mathKeywords)
-            ? scan.mathKeywords
-            : Array.isArray(scan.matchedKeywords)
-              ? scan.matchedKeywords
-              : [],
-          missingKeywords: Array.isArray(scan.missingKeywords) ? scan.missingKeywords : [],
-          warnings: Array.isArray(scan.warnings) ? scan.warnings : [],
-          suggestions: Array.isArray(scan.suggestions) ? scan.suggestions : [],
-          company: scan.company || scan.companyName || '',
-          companyName: scan.companyName || scan.company || '',
-        }));
-
+        const items = response.data || [];
         setScans(items);
         setSelectedScan(items[0] || null);
       } catch (err: unknown) {
-        const message =
-          err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-            : undefined;
-
-        setError(message || 'Failed to load scan history.');
+        setError(getApiErrorMessage(err, 'Failed to load scan history.'));
         setScans([]);
         setSelectedScan(null);
       } finally {
@@ -90,25 +57,18 @@ export default function ScanHistoryPage() {
 
   const avgScore = useMemo(() => {
     if (!scans.length) return 0;
-    return Math.round(scans.reduce((acc: number, item: ScanArrayRecord) => acc + item.score, 0) / scans.length);
+    return Math.round(scans.reduce((acc, item) => acc + item.score, 0) / scans.length);
   }, [scans]);
 
   const bestScore = useMemo(() => {
     if (!scans.length) return 0;
-    return Math.max(...scans.map((item: ScanArrayRecord) => item.score));
+    return Math.max(...scans.map((item) => item.score));
   }, [scans]);
 
-  const totalWarnings = useMemo(() => {
-    return scans.reduce((acc: number, item: ScanArrayRecord) => acc + (item.warnings?.length || 0), 0);
-  }, [scans]);
-
-  const handleFilterChange = (value: string) => {
-    setSelectedResumeId(value);
-    setSearchParams(value === 'all' ? {} : { resumeId: value });
-    setCompareScan(null);
-  };
-
-  const getCompanyLabel = (scan: ScanArrayRecord) => scan.company || scan.companyName || '';
+  const totalPriorityFixes = useMemo(
+    () => scans.reduce((acc, item) => acc + item.priorityFixes.length, 0),
+    [scans]
+  );
 
   return (
     <section className="space-y-8">
@@ -116,8 +76,8 @@ export default function ScanHistoryPage() {
         <p className="text-sm uppercase tracking-[0.25em] text-cyan-300">Scan History</p>
         <h1 className="mt-3 text-4xl font-semibold text-white md:text-5xl">Track ATS improvements</h1>
         <p className="mt-4 max-w-3xl text-slate-300">
-          Review scan attempts over time, compare score changes, and identify which missing keywords
-          were resolved between resume iterations.
+          Review scan attempts over time, compare score changes, and focus on the gaps and fixes
+          that actually move resume quality forward.
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -137,13 +97,18 @@ export default function ScanHistoryPage() {
         <label className="mb-2 block text-sm font-medium text-slate-200">Filter by Resume</label>
         <select
           value={selectedResumeId}
-          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value)}
+          onChange={(event) => {
+            const value = event.target.value;
+            setSelectedResumeId(value);
+            setSearchParams(value === 'all' ? {} : { resumeId: value });
+            setCompareScan(null);
+          }}
           className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white outline-none"
         >
           <option value="all">All resumes</option>
-          {resumes.map((resume: ResumeRecord) => (
+          {resumes.map((resume) => (
             <option key={resume._id} value={resume._id}>
-              {resume.title || 'Untitled Resume'} — {resume.personalInfo?.fullname || 'No name'}
+              {resume.title || 'Untitled Resume'} - {resume.personalInfo?.fullname || 'No name'}
             </option>
           ))}
         </select>
@@ -154,13 +119,13 @@ export default function ScanHistoryPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-semibold">All scans</h2>
             <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
-              {totalWarnings} warnings
+              {totalPriorityFixes} fixes tracked
             </span>
           </div>
 
           {loading ? (
             <div className="mt-5 space-y-3">
-              {Array.from({ length: 4 }).map((_: unknown, index: number) => (
+              {Array.from({ length: 4 }).map((_, index) => (
                 <div key={index} className="h-24 animate-pulse rounded-2xl bg-white/5" />
               ))}
             </div>
@@ -168,7 +133,7 @@ export default function ScanHistoryPage() {
             <p className="mt-5 text-slate-400">No scan history found.</p>
           ) : (
             <div className="mt-5 space-y-3">
-              {scans.map((scan: ScanArrayRecord) => (
+              {scans.map((scan) => (
                 <div key={scan._id} className="space-y-2">
                   <ScanHistoryCard scan={scan} onSelect={setSelectedScan} />
                   <button
@@ -194,11 +159,16 @@ export default function ScanHistoryPage() {
                   <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Selected Scan</p>
                   <h2 className="mt-2 text-2xl font-semibold text-white">
                     {selectedScan.jobTitle || 'Target role'}
-                    {getCompanyLabel(selectedScan) ? ` • ${getCompanyLabel(selectedScan)}` : ''}
+                    {selectedScan.companyName ? ` · ${selectedScan.companyName}` : ''}
                   </h2>
                   <p className="mt-2 text-sm text-slate-400">
                     {new Date(selectedScan.createdAt).toLocaleString()}
                   </p>
+                  {!!selectedScan.roleFitSummary && (
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                      {selectedScan.roleFitSummary}
+                    </p>
+                  )}
                 </div>
 
                 <div className="rounded-2xl bg-cyan-400 px-4 py-2 text-2xl font-semibold text-slate-950">
@@ -207,13 +177,13 @@ export default function ScanHistoryPage() {
               </div>
 
               <div className="mt-6 grid gap-6 lg:grid-cols-2">
-                <TagPanel title="Matched Keywords" items={selectedScan.matchedKeywords || selectedScan.mathKeywords || []} tone="green" />
-                <TagPanel title="Missing Keywords" items={selectedScan.missingKeywords || []} tone="amber" />
+                <TagPanel title="Matched Keywords" items={selectedScan.matchedKeywords} tone="green" />
+                <TagPanel title="Missing Keywords" items={selectedScan.missingKeywords} tone="amber" />
               </div>
 
               <div className="mt-6 grid gap-6 lg:grid-cols-2">
-                <ListPanel title="Warnings" items={selectedScan.warnings || []} />
-                <ListPanel title="Suggestions" items={selectedScan.suggestions || []} />
+                <ListPanel title="Strengths" items={selectedScan.strengths} />
+                <ListPanel title="Priority Fixes" items={selectedScan.priorityFixes} />
               </div>
             </>
           )}
@@ -247,7 +217,6 @@ function TagPanel({
   items: string[];
   tone: 'green' | 'amber';
 }) {
-  const safeItems: string[] = Array.isArray(items) ? items : [];
   const toneClass =
     tone === 'green'
       ? 'bg-emerald-500/15 text-emerald-300'
@@ -256,11 +225,11 @@ function TagPanel({
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
       <h3 className="text-lg font-semibold text-white">{title}</h3>
-      {safeItems.length === 0 ? (
+      {items.length === 0 ? (
         <p className="mt-3 text-slate-400">No items available.</p>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
-          {safeItems.map((item: string) => (
+          {items.map((item) => (
             <span key={item} className={`rounded-full px-3 py-1 text-xs font-medium ${toneClass}`}>
               {item}
             </span>
@@ -272,16 +241,14 @@ function TagPanel({
 }
 
 function ListPanel({ title, items }: { title: string; items: string[] }) {
-  const safeItems: string[] = Array.isArray(items) ? items : [];
-
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
       <h3 className="text-lg font-semibold text-white">{title}</h3>
-      {safeItems.length === 0 ? (
+      {items.length === 0 ? (
         <p className="mt-3 text-slate-400">No items available.</p>
       ) : (
         <ul className="mt-4 space-y-3 text-sm text-slate-200">
-          {safeItems.map((item: string, index: number) => (
+          {items.map((item, index) => (
             <li key={`${item}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               {item}
             </li>

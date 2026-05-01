@@ -3,6 +3,7 @@ import { api } from './axios';
 export type ResumePayload = {
   title: string;
   template: string;
+  mode: 'student' | 'professional' | 'fresher' | 'experienced' | 'career-switch';
   personalInfo: {
     fullname: string;
     email: string;
@@ -34,6 +35,9 @@ export type ResumePayload = {
     link?: string;
   }[];
   certifications: string[];
+  achievements: string[];
+  extracurriculars: string[];
+  coursework: string[];
 };
 
 export interface ResumeRecord extends ResumePayload {

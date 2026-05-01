@@ -8,8 +8,9 @@ export interface IScanHistory extends Document {
     score: number;
     matchedKeywords: string[];
     missingKeywords: string[];
-    warnings: string[];
-    suggestions: string[];
+    strengths: string[];
+    priorityFixes: string[];
+    roleFitSummary?: string;
 }
 
 const scanHistorySchema = new Schema<IScanHistory>({
@@ -20,8 +21,9 @@ const scanHistorySchema = new Schema<IScanHistory>({
     score: { type: Number, required: true},
     matchedKeywords: [{ type: String}],
     missingKeywords: [{ type: String }],
-    warnings: [{ type: String}],
-    suggestions: [{ type: String }],
+    strengths: [{ type: String }],
+    priorityFixes: [{ type: String }],
+    roleFitSummary: String,
     },
     { timestamps: true }
 )

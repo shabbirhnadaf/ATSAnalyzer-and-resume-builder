@@ -70,8 +70,7 @@ type AtsAnalysisResult = {
   matchedKeywords: string[];
   missingKeywords: string[];
   strengths: string[];
-  weakSections: string[];
-  actionChecklist: string[];
+  priorityFixes: string[];
   roleFitSummary: string;
 };
 
@@ -612,8 +611,12 @@ function normalizeAtsAnalysis(value: JsonValue): AtsAnalysisResult | null {
     matchedKeywords: Array.isArray(obj.matchedKeywords) ? extractStringArray(obj.matchedKeywords) : [],
     missingKeywords: Array.isArray(obj.missingKeywords) ? extractStringArray(obj.missingKeywords) : [],
     strengths: Array.isArray(obj.strengths) ? extractStringArray(obj.strengths) : [],
-    weakSections: Array.isArray(obj.weakSections) ? extractStringArray(obj.weakSections) : [],
-    actionChecklist: Array.isArray(obj.actionChecklist) ? extractStringArray(obj.actionChecklist) : [],
+    priorityFixes: Array.isArray(obj.priorityFixes)
+      ? extractStringArray(obj.priorityFixes)
+      : [
+          ...(Array.isArray(obj.weakSections) ? extractStringArray(obj.weakSections) : []),
+          ...(Array.isArray(obj.actionChecklist) ? extractStringArray(obj.actionChecklist) : []),
+        ],
     roleFitSummary: typeof obj.roleFitSummary === 'string' ? obj.roleFitSummary : '',
   };
 }
@@ -1008,8 +1011,7 @@ ${JSON.stringify({
   matchedKeywords: derived.matchedKeywords,
   missingKeywords: derived.missingKeywords,
   strengths: derived.strengths,
-  weakSections: derived.weakSections,
-  actionChecklist: derived.actionChecklist,
+  priorityFixes: uniq([...derived.weakSections, ...derived.actionChecklist]).slice(0, 4),
   roleFitSummary: derived.roleFitSummary,
 }, null, 2)}
 
@@ -1025,8 +1027,7 @@ Return JSON only:
   "matchedKeywords": ["string"],
   "missingKeywords": ["string"],
   "strengths": ["string"],
-  "weakSections": ["string"],
-  "actionChecklist": ["string"],
+  "priorityFixes": ["string"],
   "roleFitSummary": "string"
 }
 `;
@@ -1040,8 +1041,11 @@ Return JSON only:
       ...(ai.missingKeywords || []).filter((kw) => !mergedMatched.some((m) => normalizePhrase(m) === normalizePhrase(kw))),
     ]);
     const mergedStrengths = uniq([...(ai.strengths || []), ...derived.strengths]);
-    const mergedWeak = uniq([...(ai.weakSections || []), ...derived.weakSections]);
-    const mergedChecklist = uniq([...(ai.actionChecklist || []), ...derived.actionChecklist]);
+    const mergedPriorityFixes = uniq([
+      ...(ai.priorityFixes || []),
+      ...derived.weakSections,
+      ...derived.actionChecklist,
+    ]).slice(0, 4);
     const score = Math.max(derived.score, ai.score || 0);
 
     return {
@@ -1049,8 +1053,7 @@ Return JSON only:
       matchedKeywords: mergedMatched,
       missingKeywords: mergedMissing,
       strengths: mergedStrengths,
-      weakSections: mergedWeak,
-      actionChecklist: mergedChecklist,
+      priorityFixes: mergedPriorityFixes,
       roleFitSummary: ai.roleFitSummary?.trim() || derived.roleFitSummary,
     };
   } catch {
@@ -1059,8 +1062,7 @@ Return JSON only:
       matchedKeywords: derived.matchedKeywords,
       missingKeywords: derived.missingKeywords,
       strengths: derived.strengths,
-      weakSections: derived.weakSections,
-      actionChecklist: derived.actionChecklist,
+      priorityFixes: uniq([...derived.weakSections, ...derived.actionChecklist]).slice(0, 4),
       roleFitSummary: derived.roleFitSummary,
     };
   }

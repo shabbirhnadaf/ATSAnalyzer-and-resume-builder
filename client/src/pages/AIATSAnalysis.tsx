@@ -1,14 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ATSAnalysisCard from '../components/ai/ATSAnalysisCard';
 import KeywordGapList from '../components/ai/KeywordGapList';
-import { atsAnalysisApi, skillGapApi } from '../api/ai';
+import { atsAnalysisApi } from '../api/ai';
 import { createScanApi } from '../api/scans';
-import { toErrorText } from '../lib/errorText';
+import { getResumesApi, type ResumeRecord } from '../api/resumes';
 import * as mammoth from 'mammoth';
 import {
   GlobalWorkerOptions,
   getDocument,
 } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { getApiErrorMessage } from '../lib/apiError';
+import { buildResumePlainText } from '../lib/resume';
 
 GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
@@ -34,7 +36,10 @@ async function extractTextFromPdf(file: File): Promise<string> {
     const page = await pdf.getPage(pageNumber);
     const textContent = await page.getTextContent();
     const pageText = textContent.items
-      .map((item: any) => ('str' in item ? item.str : ''))
+      .map((item) => {
+        const candidate = item as { str?: string };
+        return typeof candidate.str === 'string' ? candidate.str : '';
+      })
       .join(' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -55,27 +60,40 @@ export default function AIATSAnalysis() {
   const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [targetRole, setTargetRole] = useState('');
+  const [selectedResumeId, setSelectedResumeId] = useState('');
+  const [resumes, setResumes] = useState<ResumeRecord[]>([]);
+  const [loadingResumes, setLoadingResumes] = useState(true);
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const [resumeSourceLabel, setResumeSourceLabel] = useState('');
   const [analysis, setAnalysis] = useState<null | {
     score: number;
     matchedKeywords: string[];
     missingKeywords: string[];
     strengths: string[];
-    weakSections: string[];
-    actionChecklist: string[];
+    priorityFixes: string[];
     roleFitSummary: string;
-  }>(null);
-  const [skillGap, setSkillGap] = useState<null | {
-    missingHardSkills: string[];
-    missingSoftSkills: string[];
-    suggestedKeywords: string[];
-    learningPriority: string[];
   }>(null);
 
   const scoreLabel = useMemo(() => scoreBand(analysis?.score || 0), [analysis]);
+
+  useEffect(() => {
+    const loadResumes = async () => {
+      try {
+        setLoadingResumes(true);
+        const response = await getResumesApi();
+        setResumes(response.data || []);
+      } catch {
+        setResumes([]);
+      } finally {
+        setLoadingResumes(false);
+      }
+    };
+
+    void loadResumes();
+  }, []);
 
   const handleFileUpload = async (file: File | null) => {
     if (!file) return;
@@ -91,13 +109,12 @@ export default function AIATSAnalysis() {
       setExtracting(true);
       setError('');
       setAnalysis(null);
-      setSkillGap(null);
 
       let extracted = '';
 
       if (lowerName.endsWith('.pdf')) {
         extracted = await extractTextFromPdf(file);
-      } else if (lowerName.endsWith('.docx')) {
+      } else {
         extracted = await extractTextFromDocx(file);
       }
 
@@ -108,12 +125,35 @@ export default function AIATSAnalysis() {
         return;
       }
 
-      setResumeText(cleaned);
+      setSelectedResumeId('');
+      setResumeSourceLabel(`Uploaded file: ${file.name}`);
       setUploadedFileName(file.name);
+      setResumeText(cleaned);
     } catch {
       setError('Failed to extract text from the uploaded file.');
     } finally {
       setExtracting(false);
+    }
+  };
+
+  const handleSavedResumeChange = (resumeId: string) => {
+    setSelectedResumeId(resumeId);
+    setAnalysis(null);
+    setError('');
+    setUploadedFileName('');
+
+    if (!resumeId) {
+      setResumeSourceLabel('');
+      return;
+    }
+
+    const selectedResume = resumes.find((resume) => resume._id === resumeId);
+    if (!selectedResume) return;
+
+    setResumeSourceLabel(`Saved resume: ${selectedResume.title || selectedResume.personalInfo?.fullname || 'Selected resume'}`);
+    setResumeText(buildResumePlainText(selectedResume));
+    if (!targetRole.trim()) {
+      setTargetRole(selectedResume.title || '');
     }
   };
 
@@ -123,7 +163,7 @@ export default function AIATSAnalysis() {
     const cleanTargetRole = sanitizeText(targetRole);
 
     if (cleanResume.length < 50) {
-      setError('Upload a resume file or paste a longer resume text before running ATS analysis.');
+      setError('Choose a saved resume, upload a file, or paste a longer resume text before running ATS analysis.');
       return;
     }
 
@@ -141,39 +181,17 @@ export default function AIATSAnalysis() {
         jobDescription: cleanJobDescription,
       });
 
-      const gapRes = await skillGapApi({
-        resumeText: cleanResume,
-        targetRole: cleanTargetRole || undefined,
-        jobDescription: cleanJobDescription,
-      });
+      setAnalysis(atsRes.data);
 
-      const analysisData = atsRes.data;
-      const gapData = gapRes.data;
-
-      setAnalysis(analysisData);
-      setSkillGap(gapData);
-
-      const scanSaveRes = await createScanApi({
+      await createScanApi({
+        resumeId: selectedResumeId || undefined,
         resumeText: cleanResume,
         jobDescription: cleanJobDescription,
         jobTitle: cleanTargetRole || 'ATS Analysis',
         companyName: '',
       });
-
-      const saved = scanSaveRes.data;
-
-      setError('');
-
-      if (!saved?.historyId) {
-        return;
-      }
-    } catch (err: any) {
-      setError(
-        toErrorText(err?.response?.data?.details) ||
-          toErrorText(err?.response?.data?.message) ||
-          toErrorText(err?.message) ||
-          'Failed to analyze resume.'
-      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to analyze resume.'));
     } finally {
       setLoading(false);
     }
@@ -184,11 +202,11 @@ export default function AIATSAnalysis() {
       <div className="mb-6 rounded-[2rem] border border-white/10 bg-gradient-to-br from-cyan-500/10 via-slate-900 to-slate-950 p-7 text-white shadow-[0_24px_80px_rgba(2,8,23,0.28)]">
         <p className="text-sm uppercase tracking-[0.22em] text-cyan-300">AI ATS Analysis</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">
-          Analyze Resume from PDF or DOCX
+          Analyze Resume Against a Job Description
         </h1>
         <p className="mt-3 max-w-3xl text-[15px] leading-7 text-slate-300">
-          Upload a resume file, extract its text automatically, and analyze it against a target job description
-          with ATS score, keyword gaps, strengths, weak sections, and action items.
+          Use an existing saved resume, upload a PDF or DOCX, or paste resume text manually to get
+          a focused ATS analysis with only the most meaningful signals.
         </p>
       </div>
 
@@ -201,6 +219,25 @@ export default function AIATSAnalysis() {
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 text-white shadow-[0_20px_60px_rgba(8,15,30,0.10)]">
           <div className="space-y-4">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+              <label className="mb-2 block text-sm font-medium text-slate-200">
+                Use Existing Saved Resume
+              </label>
+              <select
+                value={selectedResumeId}
+                onChange={(event) => handleSavedResumeChange(event.target.value)}
+                disabled={loadingResumes}
+                className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none"
+              >
+                <option value="">Choose a saved resume</option>
+                {resumes.map((resume) => (
+                  <option key={resume._id} value={resume._id}>
+                    {resume.title || 'Untitled Resume'} - {resume.personalInfo?.fullname || 'No name'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="rounded-2xl border border-dashed border-white/15 bg-slate-950/40 p-5">
               <label className="block text-sm font-medium text-slate-200">
                 Upload Resume (PDF or DOCX)
@@ -208,12 +245,10 @@ export default function AIATSAnalysis() {
               <input
                 type="file"
                 accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => handleFileUpload(e.target.files?.[0] || null)}
+                onChange={(event) => handleFileUpload(event.target.files?.[0] || null)}
                 className="mt-3 block w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-400 file:px-4 file:py-2 file:font-medium file:text-slate-950 hover:file:bg-cyan-300"
               />
-              <p className="mt-3 text-xs text-slate-400">
-                Supported formats: PDF, DOCX.
-              </p>
+              <p className="mt-3 text-xs text-slate-400">Supported formats: PDF, DOCX.</p>
               {uploadedFileName ? (
                 <p className="mt-2 text-sm text-cyan-300">Loaded file: {uploadedFileName}</p>
               ) : null}
@@ -222,24 +257,30 @@ export default function AIATSAnalysis() {
               ) : null}
             </div>
 
+            {resumeSourceLabel ? (
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+                {resumeSourceLabel}
+              </div>
+            ) : null}
+
             <input
               value={targetRole}
-              onChange={(e) => setTargetRole(e.target.value)}
+              onChange={(event) => setTargetRole(event.target.value)}
               placeholder="Target role (optional)"
               className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20"
             />
 
             <textarea
               value={resumeText}
-              onChange={(e) => setResumeText(e.target.value)}
+              onChange={(event) => setResumeText(event.target.value)}
               rows={12}
-              placeholder="Uploaded resume text will appear here, or paste full resume text manually"
+              placeholder="Saved or uploaded resume text will appear here, or paste resume text manually"
               className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20"
             />
 
             <textarea
               value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
+              onChange={(event) => setJobDescription(event.target.value)}
               rows={12}
               placeholder="Paste job description"
               className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20"
@@ -251,7 +292,7 @@ export default function AIATSAnalysis() {
               onClick={handleAnalyze}
               className="rounded-xl bg-cyan-400 px-5 py-3 font-medium text-slate-950 transition hover:bg-cyan-300 disabled:opacity-60"
             >
-              {loading ? 'Analyzing...' : 'Run AI ATS Analysis'}
+              {loading ? 'Analyzing...' : 'Run ATS Analysis'}
             </button>
           </div>
         </div>
@@ -259,8 +300,8 @@ export default function AIATSAnalysis() {
         <div className="space-y-4">
           {!analysis ? (
             <div className="rounded-[2rem] border border-dashed border-white/15 bg-white/5 p-8 text-slate-300">
-              Upload a resume file or paste resume text, then run analysis to see ATS score,
-              keyword gaps, strengths, weak sections, action checklist, and skill gap recommendations.
+              Choose a saved resume, upload one, or paste resume text, then run analysis to see
+              score, strongest matches, keyword gaps, and the top fixes worth making next.
             </div>
           ) : (
             <>
@@ -300,50 +341,12 @@ export default function AIATSAnalysis() {
 
               <ATSAnalysisCard
                 score={analysis.score}
-                title="Weak Sections"
-                items={analysis.weakSections}
+                title="Priority Fixes"
+                items={analysis.priorityFixes}
               />
 
-              <ATSAnalysisCard
-                score={analysis.score}
-                title="Action Checklist"
-                items={analysis.actionChecklist}
-              />
-
-              <KeywordGapList
-                title="Matched Keywords"
-                items={analysis.matchedKeywords}
-              />
-
-              <KeywordGapList
-                title="Missing Keywords"
-                items={analysis.missingKeywords}
-              />
-
-              {skillGap ? (
-                <>
-                  <KeywordGapList
-                    title="Missing Hard Skills"
-                    items={skillGap.missingHardSkills}
-                  />
-
-                  <KeywordGapList
-                    title="Missing Soft Skills"
-                    items={skillGap.missingSoftSkills}
-                  />
-
-                  <KeywordGapList
-                    title="Suggested Keywords"
-                    items={skillGap.suggestedKeywords}
-                  />
-
-                  <ATSAnalysisCard
-                    score={analysis.score}
-                    title="Learning Priority"
-                    items={skillGap.learningPriority}
-                  />
-                </>
-              ) : null}
+              <KeywordGapList title="Matched Keywords" items={analysis.matchedKeywords} />
+              <KeywordGapList title="Missing Keywords" items={analysis.missingKeywords} />
             </>
           )}
         </div>

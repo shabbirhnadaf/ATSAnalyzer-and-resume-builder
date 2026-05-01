@@ -17,9 +17,9 @@ type Props = {
 function mapExperience(values: ResumeFormValues): TimelineItem[] {
   return (values.experience || [])
     .map((item) => ({
-      heading: `${asString(item?.role)}${asString(item?.company) ? ` · ${asString(item?.company)}` : ''}`,
-      subheading: `${asString(item?.startDate)}${asString(item?.endDate) ? ` - ${asString(item?.endDate)}` : ''}`,
-      bullets: Array.isArray(item?.description) ? item.description.map((d) => asString(d)).filter(Boolean) : [],
+      heading: `${asString(item.role)}${asString(item.company) ? ` · ${asString(item.company)}` : ''}`,
+      subheading: `${asString(item.startDate)}${asString(item.endDate) ? ` - ${asString(item.endDate)}` : ''}`,
+      bullets: Array.isArray(item.description) ? item.description.map((d) => asString(d)).filter(Boolean) : [],
     }))
     .filter((item) => item.heading);
 }
@@ -27,9 +27,9 @@ function mapExperience(values: ResumeFormValues): TimelineItem[] {
 function mapProjects(values: ResumeFormValues): TimelineItem[] {
   return (values.projects || [])
     .map((item) => ({
-      heading: asString(item?.title),
-      subheading: asString(item?.link),
-      bullets: Array.isArray(item?.description) ? item.description.map((d) => asString(d)).filter(Boolean) : [],
+      heading: asString(item.title),
+      subheading: asString(item.link),
+      bullets: Array.isArray(item.description) ? item.description.map((d) => asString(d)).filter(Boolean) : [],
     }))
     .filter((item) => item.heading);
 }
@@ -37,8 +37,8 @@ function mapProjects(values: ResumeFormValues): TimelineItem[] {
 function mapEducation(values: ResumeFormValues): TimelineItem[] {
   return (values.education || [])
     .map((item) => ({
-      heading: `${asString(item?.degree)}${asString(item?.institution) ? ` · ${asString(item?.institution)}` : ''}`,
-      subheading: `${asString(item?.startDate)}${asString(item?.endDate) ? ` - ${asString(item?.endDate)}` : ''}${asString(item?.score) ? ` · ${asString(item?.score)}` : ''}`,
+      heading: `${asString(item.degree)}${asString(item.institution) ? ` · ${asString(item.institution)}` : ''}`,
+      subheading: `${asString(item.startDate)}${asString(item.endDate) ? ` - ${asString(item.endDate)}` : ''}${asString(item.score) ? ` · ${asString(item.score)}` : ''}`,
       bullets: [],
     }))
     .filter((item) => item.heading);
@@ -49,7 +49,7 @@ function toList(items?: unknown[]) {
 }
 
 export default function ResumeDocument({ values, templateId }: Props) {
-  const person = values.personalInfo || ({} as any);
+  const person = values.personalInfo;
   const fullName = asString(person.fullname) || 'Your Name';
   const title = asString(values.title) || 'Professional Resume';
   const summary = asString(values.summary) || 'Your professional summary will appear here.';
@@ -58,72 +58,36 @@ export default function ResumeDocument({ values, templateId }: Props) {
 
   const skills = toList(values.skills);
   const certifications = toList(values.certifications);
+  const achievements = toList(values.achievements);
+  const extracurriculars = toList(values.extracurriculars);
+  const coursework = toList(values.coursework);
   const experience = mapExperience(values);
   const projects = mapProjects(values);
   const education = mapEducation(values);
 
+  const commonProps = {
+    fullName,
+    title,
+    summary,
+    contactLine,
+    links,
+    skills,
+    certifications,
+    achievements,
+    extracurriculars,
+    coursework,
+    experience,
+    projects,
+    education,
+  };
+
   return (
     <div className="mx-auto w-[210mm] min-w-[210mm] max-w-[210mm] bg-white text-slate-900 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
       <div className="min-h-[297mm] w-[210mm] overflow-hidden">
-        {templateId === 'modern' && (
-          <ModernTemplate
-            fullName={fullName}
-            title={title}
-            summary={summary}
-            contactLine={contactLine}
-            links={links}
-            skills={skills}
-            certifications={certifications}
-            experience={experience}
-            projects={projects}
-            education={education}
-          />
-        )}
-
-        {templateId === 'minimal' && (
-          <MinimalTemplate
-            fullName={fullName}
-            title={title}
-            summary={summary}
-            contactLine={contactLine}
-            links={links}
-            skills={skills}
-            certifications={certifications}
-            experience={experience}
-            projects={projects}
-            education={education}
-          />
-        )}
-
-        {templateId === 'executive' && (
-          <ExecutiveTemplate
-            fullName={fullName}
-            title={title}
-            summary={summary}
-            contactLine={contactLine}
-            links={links}
-            skills={skills}
-            certifications={certifications}
-            experience={experience}
-            projects={projects}
-            education={education}
-          />
-        )}
-
-        {templateId === 'graduate' && (
-          <GraduateTemplate
-            fullName={fullName}
-            title={title}
-            summary={summary}
-            contactLine={contactLine}
-            links={links}
-            skills={skills}
-            certifications={certifications}
-            experience={experience}
-            projects={projects}
-            education={education}
-          />
-        )}
+        {templateId === 'modern' && <ModernTemplate {...commonProps} />}
+        {templateId === 'minimal' && <MinimalTemplate {...commonProps} />}
+        {templateId === 'executive' && <ExecutiveTemplate {...commonProps} />}
+        {templateId === 'graduate' && <GraduateTemplate {...commonProps} />}
       </div>
     </div>
   );
@@ -137,6 +101,9 @@ type TimelineProps = {
   links: string[];
   skills: string[];
   certifications: string[];
+  achievements: string[];
+  extracurriculars: string[];
+  coursework: string[];
   experience: TimelineItem[];
   projects: TimelineItem[];
   education: TimelineItem[];
@@ -183,6 +150,9 @@ function ModernTemplate(props: TimelineProps) {
           <ResumeSection title="Certifications">
             <TagCloud items={props.certifications} tone="slate" />
           </ResumeSection>
+          <ResumeSection title="Highlights">
+            <InlineList items={[...props.achievements, ...props.coursework, ...props.extracurriculars]} />
+          </ResumeSection>
         </div>
       </div>
     </div>
@@ -227,6 +197,14 @@ function MinimalTemplate(props: TimelineProps) {
           </ResumeSection>
         </>
       )}
+      {!!props.achievements.length && (
+        <>
+          <SectionRule />
+          <ResumeSection title="Achievements">
+            <InlineList items={props.achievements} />
+          </ResumeSection>
+        </>
+      )}
     </div>
   );
 }
@@ -261,6 +239,11 @@ function ExecutiveTemplate(props: TimelineProps) {
           <div className="rounded-[14px] border border-slate-200 p-4">
             <ResumeSection title="Education" darkTitle>
               <SimpleTimeline items={props.education} />
+            </ResumeSection>
+          </div>
+          <div className="rounded-[14px] border border-slate-200 p-4">
+            <ResumeSection title="Standout" darkTitle>
+              <InlineList items={[...props.achievements, ...props.coursework, ...props.extracurriculars]} />
             </ResumeSection>
           </div>
         </div>
@@ -300,6 +283,9 @@ function GraduateTemplate(props: TimelineProps) {
           </ResumeSection>
           <ResumeSection title="Certifications">
             <TagCloud items={props.certifications} tone="slate" />
+          </ResumeSection>
+          <ResumeSection title="Highlights">
+            <InlineList items={[...props.achievements, ...props.coursework, ...props.extracurriculars]} />
           </ResumeSection>
         </div>
 

@@ -73,6 +73,11 @@ export default function AIResumeForm({ loading, onSubmit }: Props) {
       return;
     }
 
+    if (email.trim().length < 5 || phone.trim().length < 5 || location.trim().length < 2) {
+      setError('Email, phone, and location are required for a complete resume.');
+      return;
+    }
+
     if (parsedSkills.length === 0) {
       setError('Add at least one skill.');
       return;
@@ -141,7 +146,8 @@ export default function AIResumeForm({ loading, onSubmit }: Props) {
         >
           <option value="modern">modern</option>
           <option value="minimal">minimal</option>
-          <option value="professional">professional</option>
+          <option value="executive">executive</option>
+          <option value="graduate">graduate</option>
         </select>
 
         <select

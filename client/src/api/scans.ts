@@ -9,27 +9,32 @@ export type ScanPayload = {
 };
 
 export type ScanResult = {
+  _id: string;
+  resume?: string;
+  jobTitle: string;
+  companyName?: string;
   score: number;
   matchedKeywords: string[];
   missingKeywords: string[];
-  suggestions: string[];
+  strengths: string[];
+  priorityFixes: string[];
+  roleFitSummary: string;
+  createdAt?: string;
+  updatedAt?: string;
   historyId: string;
 };
 
 export type ScanHistoryRecord = {
   _id: string;
-  user: string;
   resume?: string;
   jobTitle: string;
-  company?: string;
   companyName?: string;
-  jobDescription: string;
   score: number;
-  matchedKeywords?: string[];
-  mathKeywords?: string[];
-  missingKeywords?: string[];
-  suggestions?: string[];
-  warnings?: string[];
+  matchedKeywords: string[];
+  missingKeywords: string[];
+  strengths: string[];
+  priorityFixes: string[];
+  roleFitSummary: string;
   createdAt: string;
   updatedAt: string;
 };

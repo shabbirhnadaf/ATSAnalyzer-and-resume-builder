@@ -5,19 +5,60 @@ import { buildResumeApi } from '../api/ai';
 import { createResumeApi } from '../api/resumes';
 import type { BuildResumePayload, BuildResumeResponse } from '../types/ai';
 import type { ResumePayload } from '../api/resumes';
-import { defaultTemplateId } from '../constants/templates';
 import { getAccessToken } from '../lib/token';
 import { useAuth } from '../hooks/useAuth';
-import { toErrorText } from '../lib/errorText';
-
-const clean = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+import { getApiErrorMessage } from '../lib/apiError';
+import { cleanText, cleanTextList, normalizeTemplateId } from '../lib/resume';
 
 function normalizeBullets(items: string[] = []) {
-  return items.map((item) => clean(item)).filter(Boolean);
+  return cleanTextList(items);
 }
 
-function normalizeList(items: string[] = []) {
-  return items.map((item) => clean(item)).filter(Boolean);
+function normalizeResult(result: BuildResumeResponse): BuildResumeResponse {
+  return {
+    ...result,
+    template: normalizeTemplateId(result.template),
+    personalInfo: {
+      fullname: cleanText(result.personalInfo?.fullname),
+      email: cleanText(result.personalInfo?.email),
+      phone: cleanText(result.personalInfo?.phone),
+      location: cleanText(result.personalInfo?.location),
+      linkedin: cleanText(result.personalInfo?.linkedin),
+      github: cleanText(result.personalInfo?.github),
+      portfolio: cleanText(result.personalInfo?.portfolio),
+    },
+    summary: cleanText(result.summary),
+    skills: cleanTextList(result.skills),
+    experience: Array.isArray(result.experience)
+      ? result.experience.map((item) => ({
+          company: cleanText(item.company),
+          role: cleanText(item.role),
+          startDate: cleanText(item.startDate),
+          endDate: cleanText(item.endDate),
+          description: normalizeBullets(item.description),
+        }))
+      : [],
+    projects: Array.isArray(result.projects)
+      ? result.projects.map((item) => ({
+          title: cleanText(item.title),
+          description: normalizeBullets(item.description),
+          link: cleanText(item.link),
+        }))
+      : [],
+    education: Array.isArray(result.education)
+      ? result.education.map((item) => ({
+          institution: cleanText(item.institution),
+          degree: cleanText(item.degree),
+          startDate: cleanText(item.startDate),
+          endDate: cleanText(item.endDate),
+          score: cleanText(item.score),
+        }))
+      : [],
+    certifications: cleanTextList(result.certifications),
+    achievements: cleanTextList(result.achievements),
+    extracurriculars: cleanTextList(result.extracurriculars),
+    coursework: cleanTextList(result.coursework),
+  };
 }
 
 export default function AIResumeBuilder() {
@@ -35,15 +76,10 @@ export default function AIResumeBuilder() {
       setStatus('');
       setError('');
       const res = await buildResumeApi(payload);
-      setResult(res.data);
+      setResult(normalizeResult(res.data));
       setStatus('Complete AI resume generated successfully.');
-    } catch (err: any) {
-      const details = toErrorText(err?.response?.data?.details);
-      const message = toErrorText(err?.response?.data?.message);
-      const fallback = toErrorText(err?.message);
-      setError(
-        details || message || fallback || 'Failed to generate full AI resume.'
-      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to generate full AI resume.'));
     } finally {
       setLoading(false);
     }
@@ -68,26 +104,27 @@ export default function AIResumeBuilder() {
       setStatus('');
 
       const payload: ResumePayload = {
-        title: clean(result.title) || 'AI Generated Resume',
-        template: clean(result.template) || defaultTemplateId,
+        title: cleanText(result.title) || 'AI Generated Resume',
+        template: normalizeTemplateId(result.template),
+        mode: result.mode === 'professional' ? 'professional' : 'student',
         personalInfo: {
-          fullname: clean(result.personalInfo?.fullname),
-          email: clean(result.personalInfo?.email),
-          phone: clean(result.personalInfo?.phone),
-          location: clean(result.personalInfo?.location),
-          linkedin: clean(result.personalInfo?.linkedin),
-          github: clean(result.personalInfo?.github),
-          portfolio: clean(result.personalInfo?.portfolio),
+          fullname: cleanText(result.personalInfo?.fullname),
+          email: cleanText(result.personalInfo?.email),
+          phone: cleanText(result.personalInfo?.phone),
+          location: cleanText(result.personalInfo?.location),
+          linkedin: cleanText(result.personalInfo?.linkedin),
+          github: cleanText(result.personalInfo?.github),
+          portfolio: cleanText(result.personalInfo?.portfolio),
         },
-        summary: clean(result.summary),
-        skills: normalizeList(result.skills || []),
+        summary: cleanText(result.summary),
+        skills: cleanTextList(result.skills || []),
         experience: Array.isArray(result.experience)
           ? result.experience
               .map((item) => ({
-                company: clean(item.company),
-                role: clean(item.role),
-                startDate: clean(item.startDate),
-                endDate: clean(item.endDate) || 'Present',
+                company: cleanText(item.company),
+                role: cleanText(item.role),
+                startDate: cleanText(item.startDate),
+                endDate: cleanText(item.endDate) || 'Present',
                 description: normalizeBullets(item.description || []),
               }))
               .filter(
@@ -102,11 +139,11 @@ export default function AIResumeBuilder() {
         education: Array.isArray(result.education)
           ? result.education
               .map((item) => ({
-                institution: clean(item.institution),
-                degree: clean(item.degree),
-                startDate: clean(item.startDate),
-                endDate: clean(item.endDate),
-                score: clean(item.score),
+                institution: cleanText(item.institution),
+                degree: cleanText(item.degree),
+                startDate: cleanText(item.startDate),
+                endDate: cleanText(item.endDate),
+                score: cleanText(item.score),
               }))
               .filter(
                 (item) =>
@@ -120,13 +157,16 @@ export default function AIResumeBuilder() {
         projects: Array.isArray(result.projects)
           ? result.projects
               .map((item) => ({
-                title: clean(item.title),
+                title: cleanText(item.title),
                 description: normalizeBullets(item.description || []),
-                link: clean(item.link),
+                link: cleanText(item.link),
               }))
               .filter((item) => item.title || item.link || item.description.length)
           : [],
-        certifications: normalizeList(result.certifications || []),
+        certifications: cleanTextList(result.certifications || []),
+        achievements: cleanTextList(result.achievements || []),
+        extracurriculars: cleanTextList(result.extracurriculars || []),
+        coursework: cleanTextList(result.coursework || []),
       };
 
       if (
@@ -140,25 +180,19 @@ export default function AIResumeBuilder() {
         return;
       }
 
-
       const created = await createResumeApi(payload);
       setStatus(created.message || 'AI resume saved to dashboard successfully.');
 
       const createdId = created?.data?._id;
-
       if (createdId) {
         navigate(`/builder?id=${createdId}`);
         return;
       }
 
       navigate('/resumes');
-    } catch (err: any) {
-      const backendMessage = toErrorText(err?.response?.data?.details)
-        || toErrorText(err?.response?.data?.message)
-        || toErrorText(err?.message)
-        || 'Failed to save AI resume.';
-      setError(backendMessage);
-      console.error('AI RESUME SAVE ERROR:', err?.response?.data || err);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to save AI resume.'));
+      console.error('AI RESUME SAVE ERROR:', err);
     } finally {
       setSaving(false);
     }
@@ -170,8 +204,8 @@ export default function AIResumeBuilder() {
         <p className="text-sm uppercase tracking-[0.22em] text-cyan-300">AI Resume Builder</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">Generate Full Job-Ready Resume</h1>
         <p className="mt-3 max-w-3xl text-[15px] leading-7 text-slate-300">
-          Build a complete resume with recruiter-friendly summary, ATS-ready skills, dynamic work experience,
-          projects, education, and certifications.
+          Build a complete resume with recruiter-friendly summary, ATS-ready skills, dynamic work
+          experience, projects, education, and certifications.
         </p>
       </div>
 
@@ -240,7 +274,10 @@ export default function AIResumeBuilder() {
                 <p className="text-xs uppercase tracking-[0.18em] text-cyan-300">Experience</p>
                 <div className="mt-3 space-y-3">
                   {(result.experience || []).map((item, index) => (
-                    <div key={`${item.company}-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div
+                      key={`${item.company}-${index}`}
+                      className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
+                    >
                       <h4 className="font-semibold text-white">
                         {item.role || 'Role'} · {item.company || 'Company'}
                       </h4>
@@ -261,7 +298,10 @@ export default function AIResumeBuilder() {
                 <p className="text-xs uppercase tracking-[0.18em] text-cyan-300">Projects</p>
                 <div className="mt-3 space-y-3">
                   {(result.projects || []).map((item, index) => (
-                    <div key={`${item.title}-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div
+                      key={`${item.title}-${index}`}
+                      className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
+                    >
                       <h4 className="font-semibold text-white">{item.title || 'Project'}</h4>
                       {item.link ? <p className="mt-1 text-xs text-cyan-300">{item.link}</p> : null}
                       <ul className="mt-3 space-y-2 text-sm text-slate-300">
@@ -278,7 +318,10 @@ export default function AIResumeBuilder() {
                 <p className="text-xs uppercase tracking-[0.18em] text-cyan-300">Education</p>
                 <div className="mt-3 space-y-3">
                   {(result.education || []).map((item, index) => (
-                    <div key={`${item.institution}-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div
+                      key={`${item.institution}-${index}`}
+                      className="rounded-2xl border border-white/10 bg-slate-950/40 p-4"
+                    >
                       <h4 className="font-semibold text-white">{item.degree}</h4>
                       <p className="mt-1 text-sm text-slate-300">{item.institution}</p>
                       <p className="mt-1 text-xs text-slate-400">
@@ -292,6 +335,9 @@ export default function AIResumeBuilder() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <MiniList title="Certifications" items={result.certifications || []} />
+                <MiniList title="Achievements" items={result.achievements || []} />
+                <MiniList title="Coursework" items={result.coursework || []} />
+                <MiniList title="Extracurriculars" items={result.extracurriculars || []} />
               </div>
 
               <button

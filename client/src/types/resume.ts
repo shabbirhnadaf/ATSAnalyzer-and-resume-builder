@@ -1,7 +1,7 @@
 export type ResumeFormValues = {
   title: string;
   template: string;
-  mode: 'student' | 'fresher' | 'experienced' | 'career-switch';
+  mode: 'student' | 'professional' | 'fresher' | 'experienced' | 'career-switch';
   personalInfo: {
     fullname: string;
     email: string;

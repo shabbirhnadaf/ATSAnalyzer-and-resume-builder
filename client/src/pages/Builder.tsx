@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   createResumeApi,
@@ -9,7 +9,8 @@ import {
 } from '../api/resumes';
 import type { ResumeFormValues, ResumeTemplateId } from '../types/resume';
 import { defaultTemplateId, resumeTemplates } from '../constants/templates';
-import { toErrorText } from '../lib/errorText';
+import { getApiErrorMessage } from '../lib/apiError';
+import { cleanText, normalizeTemplateId } from '../lib/resume';
 
 const emptyEducation = {
   institution: '',
@@ -57,7 +58,9 @@ const defaultValues: ResumeFormValues = {
   coursework: [],
 };
 
-const clean = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+function cleanList(items: string[]) {
+  return items.map((item) => cleanText(item)).filter(Boolean);
+}
 
 export default function Builder() {
   const [searchParams] = useSearchParams();
@@ -69,6 +72,9 @@ export default function Builder() {
   const [errors, setErrors] = useState<string[]>([]);
   const [skillsInput, setSkillsInput] = useState('');
   const [certificationsInput, setCertificationsInput] = useState('');
+  const [achievementsInput, setAchievementsInput] = useState('');
+  const [extracurricularsInput, setExtracurricularsInput] = useState('');
+  const [courseworkInput, setCourseworkInput] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplateId>(defaultTemplateId);
 
   const { register, control, handleSubmit, reset, setValue, watch } = useForm<ResumeFormValues>({
@@ -90,58 +96,63 @@ export default function Builder() {
         setStatus('');
         const response = await getResumeByIdApi(resumeId);
         const data = response.data;
+        const nextTemplate = normalizeTemplateId(data.template);
 
-        const nextTemplate = (clean(data.template) || defaultTemplateId) as ResumeTemplateId;
         setSelectedTemplate(nextTemplate);
-
         reset({
           ...defaultValues,
-          title: clean(data.title),
+          title: cleanText(data.title),
           template: nextTemplate,
-          mode: 'student',
+          mode:
+            data.mode === 'professional' ||
+            data.mode === 'fresher' ||
+            data.mode === 'experienced' ||
+            data.mode === 'career-switch'
+              ? data.mode
+              : 'student',
           personalInfo: {
-            fullname: clean(data.personalInfo?.fullname),
-            email: clean(data.personalInfo?.email),
-            phone: clean(data.personalInfo?.phone),
-            location: clean(data.personalInfo?.location),
-            linkedin: clean(data.personalInfo?.linkedin),
-            github: clean(data.personalInfo?.github),
-            portfolio: clean(data.personalInfo?.portfolio),
+            fullname: cleanText(data.personalInfo?.fullname),
+            email: cleanText(data.personalInfo?.email),
+            phone: cleanText(data.personalInfo?.phone),
+            location: cleanText(data.personalInfo?.location),
+            linkedin: cleanText(data.personalInfo?.linkedin),
+            github: cleanText(data.personalInfo?.github),
+            portfolio: cleanText(data.personalInfo?.portfolio),
           },
-          summary: clean(data.summary),
+          summary: cleanText(data.summary),
           skills: [],
           experience:
             Array.isArray(data.experience) && data.experience.length
               ? data.experience.map((item) => ({
-                  company: clean(item.company),
-                  role: clean(item.role),
-                  startDate: clean(item.startDate),
-                  endDate: clean(item.endDate),
+                  company: cleanText(item.company),
+                  role: cleanText(item.role),
+                  startDate: cleanText(item.startDate),
+                  endDate: cleanText(item.endDate),
                   description:
                     Array.isArray(item.description) && item.description.length
-                      ? item.description.map((d) => clean(d))
+                      ? item.description.map((description) => cleanText(description))
                       : ['', '', ''],
                 }))
               : [],
           education:
             Array.isArray(data.education) && data.education.length
               ? data.education.map((item) => ({
-                  institution: clean(item.institution),
-                  degree: clean(item.degree),
-                  startDate: clean(item.startDate),
-                  endDate: clean(item.endDate),
-                  score: clean(item.score),
+                  institution: cleanText(item.institution),
+                  degree: cleanText(item.degree),
+                  startDate: cleanText(item.startDate),
+                  endDate: cleanText(item.endDate),
+                  score: cleanText(item.score),
                 }))
               : [emptyEducation],
           projects:
             Array.isArray(data.projects) && data.projects.length
               ? data.projects.map((item) => ({
-                  title: clean(item.title),
+                  title: cleanText(item.title),
                   description:
                     Array.isArray(item.description) && item.description.length
-                      ? item.description.map((d) => clean(d))
+                      ? item.description.map((description) => cleanText(description))
                       : ['', '', ''],
-                  link: clean(item.link),
+                  link: cleanText(item.link),
                 }))
               : [],
           certifications: [],
@@ -150,18 +161,13 @@ export default function Builder() {
           coursework: [],
         });
 
-        setSkillsInput(Array.isArray(data.skills) ? data.skills.map((item) => clean(item)).filter(Boolean).join(', ') : '');
-        setCertificationsInput(
-          Array.isArray(data.certifications)
-            ? data.certifications.map((item) => clean(item)).filter(Boolean).join(', ')
-            : ''
-        );
-      } catch (error: any) {
-        setStatus(
-          toErrorText(error?.response?.data?.message) ||
-            toErrorText(error?.message) ||
-            'Failed to load resume.'
-        );
+        setSkillsInput(Array.isArray(data.skills) ? cleanList(data.skills).join(', ') : '');
+        setCertificationsInput(Array.isArray(data.certifications) ? cleanList(data.certifications).join(', ') : '');
+        setAchievementsInput(Array.isArray(data.achievements) ? cleanList(data.achievements).join(', ') : '');
+        setExtracurricularsInput(Array.isArray(data.extracurriculars) ? cleanList(data.extracurriculars).join(', ') : '');
+        setCourseworkInput(Array.isArray(data.coursework) ? cleanList(data.coursework).join(', ') : '');
+      } catch (error: unknown) {
+        setStatus(getApiErrorMessage(error, 'Failed to load resume.'));
       } finally {
         setLoading(false);
       }
@@ -176,47 +182,51 @@ export default function Builder() {
 
   const payload = useMemo<ResumePayload>(
     () => ({
-      title: clean(values.title),
+      title: cleanText(values.title),
       template: selectedTemplate,
+      mode: values.mode,
       personalInfo: {
-        fullname: clean(values.personalInfo?.fullname),
-        email: clean(values.personalInfo?.email),
-        phone: clean(values.personalInfo?.phone),
-        location: clean(values.personalInfo?.location),
-        linkedin: clean(values.personalInfo?.linkedin),
-        github: clean(values.personalInfo?.github),
-        portfolio: clean(values.personalInfo?.portfolio),
+        fullname: cleanText(values.personalInfo?.fullname),
+        email: cleanText(values.personalInfo?.email),
+        phone: cleanText(values.personalInfo?.phone),
+        location: cleanText(values.personalInfo?.location),
+        linkedin: cleanText(values.personalInfo?.linkedin),
+        github: cleanText(values.personalInfo?.github),
+        portfolio: cleanText(values.personalInfo?.portfolio),
       },
-      summary: clean(values.summary),
+      summary: cleanText(values.summary),
       skills: skillsInput.split(',').map((item) => item.trim()).filter(Boolean),
       experience: (values.experience || [])
         .map((item) => ({
-          company: clean(item.company),
-          role: clean(item.role),
-          startDate: clean(item.startDate),
-          endDate: clean(item.endDate),
-          description: (item.description || []).map((d) => clean(d)).filter(Boolean),
+          company: cleanText(item.company),
+          role: cleanText(item.role),
+          startDate: cleanText(item.startDate),
+          endDate: cleanText(item.endDate),
+          description: (item.description || []).map((description) => cleanText(description)).filter(Boolean),
         }))
         .filter((item) => item.company || item.role || item.startDate || item.endDate || item.description.length),
       education: (values.education || [])
         .map((item) => ({
-          institution: clean(item.institution),
-          degree: clean(item.degree),
-          startDate: clean(item.startDate),
-          endDate: clean(item.endDate),
-          score: clean(item.score),
+          institution: cleanText(item.institution),
+          degree: cleanText(item.degree),
+          startDate: cleanText(item.startDate),
+          endDate: cleanText(item.endDate),
+          score: cleanText(item.score),
         }))
         .filter((item) => item.institution || item.degree || item.startDate || item.endDate || item.score),
       projects: (values.projects || [])
         .map((item) => ({
-          title: clean(item.title),
-          description: (item.description || []).map((d) => clean(d)).filter(Boolean),
-          link: clean(item.link),
+          title: cleanText(item.title),
+          description: (item.description || []).map((description) => cleanText(description)).filter(Boolean),
+          link: cleanText(item.link),
         }))
         .filter((item) => item.title || item.link || item.description.length),
       certifications: certificationsInput.split(',').map((item) => item.trim()).filter(Boolean),
+      achievements: achievementsInput.split(',').map((item) => item.trim()).filter(Boolean),
+      extracurriculars: extracurricularsInput.split(',').map((item) => item.trim()).filter(Boolean),
+      coursework: courseworkInput.split(',').map((item) => item.trim()).filter(Boolean),
     }),
-    [values, skillsInput, certificationsInput, selectedTemplate]
+    [values, skillsInput, certificationsInput, achievementsInput, extracurricularsInput, courseworkInput, selectedTemplate]
   );
 
   const onSubmit = async () => {
@@ -232,20 +242,9 @@ export default function Builder() {
         await createResumeApi(payload);
         setStatus('Resume created successfully.');
       }
-    } catch (error: any) {
-      const issues = error?.response?.data?.details;
-      if (Array.isArray(issues)) {
-        setErrors(
-          issues
-            .map((item: unknown) => toErrorText(item))
-            .filter(Boolean)
-        );
-      }
-      setStatus(
-        toErrorText(error?.response?.data?.message) ||
-          toErrorText(error?.message) ||
-          'Unable to save resume.'
-      );
+    } catch (error: unknown) {
+      setStatus(getApiErrorMessage(error, 'Unable to save resume.'));
+      setErrors([]);
     } finally {
       setSaving(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -271,26 +270,17 @@ export default function Builder() {
                 {resumeId ? 'Edit resume' : 'Create resume'}
               </h1>
               <p className="mt-3 text-[15px] leading-7 text-slate-300">
-                Clean, spacious editor with full-width fields and simple section cards.
+                Structured editing, stronger resume storytelling, and cleaner ATS-friendly sections.
               </p>
 
               <div className="mt-4 flex flex-wrap gap-3">
-                <Link
-                  to="/ai-assistant"
-                  className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100"
-                >
+                <Link to="/ai-assistant" className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100">
                   AI Assistant
                 </Link>
-                <Link
-                  to="/ai-resume-builder"
-                  className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100"
-                >
+                <Link to="/ai-resume-builder" className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100">
                   AI Resume Builder
                 </Link>
-                <Link
-                  to="/ai-ats-analysis"
-                  className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100"
-                >
+                <Link to="/ai-ats-analysis" className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-100">
                   AI ATS Analysis
                 </Link>
               </div>
@@ -355,8 +345,15 @@ export default function Builder() {
         </Section>
 
         <Section title="Resume Setup">
-          <div className="grid gap-5">
+          <div className="grid gap-5 md:grid-cols-2">
             <Field label="Resume title" placeholder="Frontend Developer Resume 2026 *" register={register('title')} />
+            <SelectField label="Candidate stage" register={register('mode')}>
+              <option value="student">Student</option>
+              <option value="fresher">Fresher</option>
+              <option value="experienced">Experienced</option>
+              <option value="career-switch">Career Switch</option>
+              <option value="professional">Professional</option>
+            </SelectField>
           </div>
         </Section>
 
@@ -389,7 +386,7 @@ export default function Builder() {
             placeholder="React, TypeScript, Tailwind CSS, Node.js, Express, MongoDB"
             rows={4}
             value={skillsInput}
-            onChange={(e) => setSkillsInput(e.target.value)}
+            onChange={(event) => setSkillsInput(event.target.value)}
           />
         </Section>
 
@@ -481,8 +478,34 @@ export default function Builder() {
             placeholder="AWS Cloud Practitioner, Google UX Design"
             rows={3}
             value={certificationsInput}
-            onChange={(e) => setCertificationsInput(e.target.value)}
+            onChange={(event) => setCertificationsInput(event.target.value)}
           />
+        </Section>
+
+        <Section title="Standout Details" subtitle="Extra credibility signals help both ATS and recruiters.">
+          <div className="grid gap-5">
+            <TextArea
+              label="Achievements"
+              placeholder="Won hackathon finalist, improved conversion by 18%, scholarship recipient"
+              rows={3}
+              value={achievementsInput}
+              onChange={(event) => setAchievementsInput(event.target.value)}
+            />
+            <TextArea
+              label="Extracurriculars"
+              placeholder="Developer community lead, mentoring, volunteering"
+              rows={3}
+              value={extracurricularsInput}
+              onChange={(event) => setExtracurricularsInput(event.target.value)}
+            />
+            <TextArea
+              label="Relevant coursework"
+              placeholder="Data Structures, Operating Systems, DBMS, Distributed Systems"
+              rows={3}
+              value={courseworkInput}
+              onChange={(event) => setCourseworkInput(event.target.value)}
+            />
+          </div>
         </Section>
 
         <div className="flex flex-wrap items-center gap-4 pt-2">
@@ -500,6 +523,9 @@ export default function Builder() {
               reset(defaultValues);
               setSkillsInput('');
               setCertificationsInput('');
+              setAchievementsInput('');
+              setExtracurricularsInput('');
+              setCourseworkInput('');
               setSelectedTemplate(defaultTemplateId);
               setStatus('');
               setErrors([]);
@@ -545,7 +571,7 @@ function Field({
 }: {
   label: string;
   placeholder: string;
-  register: any;
+  register: UseFormRegisterReturn;
 }) {
   return (
     <div className="w-full">
@@ -555,6 +581,28 @@ function Field({
         placeholder={placeholder}
         className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3.5 text-[15px] text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20"
       />
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  register,
+  children,
+}: {
+  label: string;
+  register: UseFormRegisterReturn;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="w-full">
+      <Label>{label}</Label>
+      <select
+        {...register}
+        className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3.5 text-[15px] text-white outline-none transition focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20"
+      >
+        {children}
+      </select>
     </div>
   );
 }
@@ -570,7 +618,7 @@ function TextArea({
   label: string;
   placeholder: string;
   rows: number;
-  register?: any;
+  register?: UseFormRegisterReturn;
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
 }) {

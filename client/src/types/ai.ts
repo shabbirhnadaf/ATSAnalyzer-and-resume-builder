@@ -118,8 +118,7 @@ export type AtsAnalysisResponse = {
   matchedKeywords: string[];
   missingKeywords: string[];
   strengths: string[];
-  weakSections: string[];
-  actionChecklist: string[];
+  priorityFixes: string[];
   roleFitSummary: string;
 };
 

@@ -11,6 +11,7 @@ const cleanStringArray = (value: unknown): string[] =>
 const normalizeResumePayload = (body: any) => ({
   title: clean(body.title),
   template: clean(body.template) || 'modern',
+  mode: clean(body.mode) || 'student',
   personalInfo: {
     fullname: clean(body.personalInfo?.fullname),
     email: clean(body.personalInfo?.email),
@@ -48,6 +49,9 @@ const normalizeResumePayload = (body: any) => ({
       }))
     : [],
   certifications: cleanStringArray(body.certifications),
+  achievements: cleanStringArray(body.achievements),
+  extracurriculars: cleanStringArray(body.extracurriculars),
+  coursework: cleanStringArray(body.coursework),
 });
 
 export const createResume = async (req: Request, res: Response) => {

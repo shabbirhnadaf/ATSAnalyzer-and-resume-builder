@@ -1,28 +1,17 @@
-import { createContext, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import { loginApi, logoutApi, meApi, registerApi } from "../api/auth";
-import { clearAccessToken, setAccessToken } from "../lib/token";
-import type { User } from "../types/auth";
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { loginApi, logoutApi, meApi } from '../api/auth';
+import { registerApi } from '../api/auth';
+import { clearAccessToken, setAccessToken } from '../lib/token';
+import { AuthContext } from './auth-context';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-interface AuthContextType {
-    user: User | null;
-    loading: boolean;
-    isAuthenticated: boolean;
-    login: (payload: { email: string; password: string }) => Promise<void>;
-    register: (payload: {name: string, email: string, password: string}) => Promise<void>;
-    logout: () => Promise<void>;
-    bootstrapAuth: () => Promise<void>;
-}
-
-export const AuthContext = createContext<AuthContextType | null>(null);
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<Awaited<ReturnType<typeof meApi>>['data'] | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const bootstrapAuth = async() => {
+    const bootstrapAuth = async () => {
         try {
             const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
                 method: 'POST',
@@ -36,31 +25,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             const meRes = await meApi();
             setUser(meRes.data);
-        } catch (error) {
+        } catch {
             clearAccessToken();
             setUser(null);
         } finally {
             setLoading(false);
         }
-    }
+    };
 
     useEffect(() => {
         bootstrapAuth();
     }, []);
 
-    const login = async (payload: { email: string, password: string }) => {
+    const login = async (payload: { email: string; password: string }) => {
         const res = await loginApi(payload);
         setAccessToken(res.data.accessToken);
         setUser(res.data.user);
-    }
+    };
 
-    const register = async (payload: { name: string, email: string, password: string }) => {
+    const register = async (payload: { name: string; email: string; password: string }) => {
         const res = await registerApi(payload);
         setAccessToken(res.data.accessToken);
         setUser(res.data.user);
-    }
+    };
 
-    const logout = async() => {
+    const logout = async () => {
         await logoutApi();
         clearAccessToken();
         setUser(null);
@@ -79,5 +68,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         [user, loading]
     );
 
-    return <AuthContext.Provider value={value}>{ children }</AuthContext.Provider>;
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

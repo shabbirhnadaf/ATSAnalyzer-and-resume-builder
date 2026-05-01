@@ -6,14 +6,6 @@ type Props = {
 };
 
 export default function ScanHistoryCard({ scan, onSelect }: Props) {
-  const keywords: string[] = Array.isArray(scan.matchedKeywords)
-    ? scan.matchedKeywords
-    : Array.isArray(scan.mathKeywords)
-      ? scan.mathKeywords
-      : [];
-
-  const companyLabel = scan.company || scan.companyName || '';
-
   return (
     <button
       type="button"
@@ -24,7 +16,7 @@ export default function ScanHistoryCard({ scan, onSelect }: Props) {
         <div>
           <h3 className="font-medium text-white">
             {scan.jobTitle || 'Untitled role'}
-            {companyLabel ? ` • ${companyLabel}` : ''}
+            {scan.companyName ? ` · ${scan.companyName}` : ''}
           </h3>
           <p className="mt-1 text-sm text-slate-400">
             {new Date(scan.createdAt).toLocaleString()}
@@ -37,7 +29,7 @@ export default function ScanHistoryCard({ scan, onSelect }: Props) {
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {keywords.slice(0, 6).map((keyword: string) => (
+        {scan.matchedKeywords.slice(0, 6).map((keyword) => (
           <span
             key={keyword}
             className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs text-emerald-300"
