@@ -11,3 +11,6 @@ Server is running on port 5000
 [INFO] 00:42:59 Restarting: C:\web\resume_builder\server\src\utils\ai.ts has been modified
 [dotenv@17.3.1] injecting env (9) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
 Server is running on port 5000
+[INFO] 00:59:00 Restarting: C:\web\resume_builder\server\src\controllers\scan.controller.ts has been modified
+[dotenv@17.3.1] injecting env (9) from .env -- tip: ⚙️  override existing env vars with { override: true }
+Server is running on port 5000
